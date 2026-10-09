@@ -146,10 +146,10 @@ export const HealthProvider = ({ children }) => {
     return { ...initialSleepData, date: today };
   });
 
-  // 0. Auth & Session State
+  // 0. Auth & Session State (Default to false for every new visitor)
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     const savedAuth = localStorage.getItem('glucocare_auth');
-    return savedAuth !== 'false';
+    return savedAuth === 'true';
   });
 
   const logout = () => {
@@ -159,7 +159,7 @@ export const HealthProvider = ({ children }) => {
       {
         id: 'n_out_' + Date.now(),
         title: '🔒 Signed Out',
-        body: 'You have been safely logged out. Your local records remain secure.',
+        body: 'You have been safely signed out. Your records remain secure on this device.',
         type: 'info',
         isRead: false,
         timestamp: new Date().toISOString()
@@ -168,24 +168,45 @@ export const HealthProvider = ({ children }) => {
     ]);
   };
 
-  const login = (customProfile = null) => {
+  const login = (customProfile = null, options = {}) => {
     if (customProfile) {
       setUser(customProfile);
       localStorage.setItem('glucocare_user', JSON.stringify(customProfile));
+
+      // Brand-new registered user: initialize clean baseline records for them
+      if (options.isNewUser) {
+        const starterGlucose = [
+          {
+            id: 'g_' + Date.now(),
+            value: customProfile.targetGlucoseMin ? Math.round((Number(customProfile.targetGlucoseMin) + Number(customProfile.targetGlucoseMax || 140)) / 2) : 100,
+            type: 'fasting',
+            notes: 'Initial baseline record on account creation',
+            timestamp: new Date().toISOString(),
+            status: 'normal'
+          }
+        ];
+        setGlucoseReadings(starterGlucose);
+        localStorage.setItem('glucocare_glucose', JSON.stringify(starterGlucose));
+
+        setMedications([]);
+        localStorage.setItem('glucocare_meds', JSON.stringify([]));
+
+        const welcomeNotification = [
+          {
+            id: 'n_wel_' + Date.now(),
+            title: `🎉 Welcome to GlucoCare, ${customProfile.name?.split(' ')[0] || 'User'}!`,
+            body: `Your personalized diabetes profile for ${customProfile.diabetesType || 'Diabetes Management'} has been created. Start logging your glucose and meals!`,
+            type: 'success',
+            isRead: false,
+            timestamp: new Date().toISOString()
+          }
+        ];
+        setNotifications(welcomeNotification);
+        localStorage.setItem('glucocare_notifications', JSON.stringify(welcomeNotification));
+      }
     }
     setIsAuthenticated(true);
     localStorage.setItem('glucocare_auth', 'true');
-    setNotifications(prev => [
-      {
-        id: 'n_in_' + Date.now(),
-        title: '👋 Welcome Back!',
-        body: `Signed in successfully. All diabetes tracking records are ready.`,
-        type: 'success',
-        isRead: false,
-        timestamp: new Date().toISOString()
-      },
-      ...prev
-    ]);
   };
 
   // 8. Steps & Step History State
