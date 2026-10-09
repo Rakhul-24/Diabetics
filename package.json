@@ -1,0 +1,19 @@
+{
+  "name": "diabetes-care-app",
+  "version": "1.0.0",
+  "description": "Smart Diabetes Care & Lifestyle Management Web Application",
+  "scripts": {
+    "start": "npm start --prefix frontend",
+    "build": "npm run build --prefix frontend",
+    "start:backend": "npm start --prefix backend",
+    "dev:backend": "npm run dev --prefix backend"
+  },
+  "keywords": [
+    "diabetes",
+    "health",
+    "react",
+    "wellness"
+  ],
+  "author": "",
+  "license": "ISC"
+}
