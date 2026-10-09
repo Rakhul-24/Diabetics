@@ -6,7 +6,11 @@
     "start": "npm start --prefix frontend",
     "build": "npm run build --prefix frontend",
     "start:backend": "npm start --prefix backend",
-    "dev:backend": "npm run dev --prefix backend"
+    "dev:backend": "npm run dev --prefix backend",
+    "mobile:build": "npm run --prefix frontend cap:build",
+    "mobile:open": "npm run --prefix frontend cap:open",
+    "mobile:run": "npm run --prefix frontend cap:run",
+    "mobile:sync": "npm run --prefix frontend cap:sync"
   },
   "keywords": [
     "diabetes",
