@@ -1,6 +1,5 @@
-// API Service to communicate with Express Backend (http://localhost:5000)
-
-const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+// API Service to communicate with Express Backend
+const BASE_URL = process.env.REACT_APP_API_URL || 'https://diabetics-sfa9.onrender.com/api';
 
 export const apiService = {
   // AI Recommendation & Chat
@@ -82,7 +81,8 @@ export const apiService = {
   // Health check
   async checkHealth() {
     try {
-      const res = await fetch(`http://localhost:5000/health`);
+      const healthUrl = BASE_URL.replace(/\/api$/, '') + '/health';
+      const res = await fetch(healthUrl);
       return await res.json();
     } catch (e) {
       return { status: 'offline' };
