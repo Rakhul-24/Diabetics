@@ -1,19 +1,53 @@
 {
+  "id": "/",
   "short_name": "GlucoCare",
   "name": "GlucoCare AI • Diabetes & Lifestyle Health",
-  "description": "Smart Diabetes Care & Lifestyle Management App - Track blood glucose, nutrition, steps, and get AI health coaching.",
+  "description": "Progressive mobile app for intelligent diabetes care, continuous glucose monitoring, low-GI nutrition, and AI wellness coaching.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "window-controls-overlay"],
+  "orientation": "portrait-primary",
+  "background_color": "#090D14",
+  "theme_color": "#10B981",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["medical", "health", "fitness", "lifestyle"],
   "icons": [
     {
       "src": "/icon.svg",
       "type": "image/svg+xml",
       "sizes": "192x192 512x512",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512",
+      "purpose": "maskable"
     }
   ],
-  "start_url": "/",
-  "background_color": "#0F172A",
-  "theme_color": "#10B981",
-  "display": "standalone",
-  "orientation": "portrait",
-  "scope": "/"
+  "shortcuts": [
+    {
+      "name": "Log Blood Glucose",
+      "short_name": "Log Glucose",
+      "description": "Record blood glucose reading instantly",
+      "url": "/?action=log-glucose",
+      "icons": [{ "src": "/icon.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "AI Health Coach",
+      "short_name": "AI Coach",
+      "description": "Chat with GlucoCare AI Assistant",
+      "url": "/?view=ai-coach",
+      "icons": [{ "src": "/icon.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Emergency SOS",
+      "short_name": "Emergency SOS",
+      "description": "Rule of 15 and Emergency Medical ID",
+      "url": "/?view=emergency",
+      "icons": [{ "src": "/icon.svg", "sizes": "192x192" }]
+    }
+  ]
 }

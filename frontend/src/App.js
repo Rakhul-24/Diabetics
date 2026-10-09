@@ -6,6 +6,7 @@ import { Navigation } from './components/layout/Navigation';
 import { QuickActionModal } from './components/layout/QuickActionModal';
 import { GlucoseLogModal } from './components/common/GlucoseLogModal';
 import { NotificationDrawer } from './components/common/NotificationDrawer';
+import { InstallPwaBanner } from './components/common/InstallPwaBanner';
 
 // Views
 import { DashboardView } from './views/DashboardView';
@@ -91,6 +92,7 @@ function AppContent() {
 
       {/* Main Content Area */}
       <div className="main-wrapper">
+        <InstallPwaBanner />
         <Header
           currentView={currentView}
           onViewChange={setCurrentView}

@@ -298,7 +298,7 @@ button {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  padding-bottom: calc(var(--bottom-nav-height) + 16px);
+  padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 12px) + 20px);
 }
 
 @media (min-width: 1024px) {
@@ -310,18 +310,18 @@ button {
 
 /* Header */
 .app-header {
-  height: var(--header-height);
+  min-height: var(--header-height);
   position: sticky;
   top: 0;
   z-index: 40;
   background: var(--header-bg);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--border-light);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 14px;
+  padding: env(safe-area-inset-top, 0px) 14px 0 14px;
   transition: all 0.25s ease;
 }
 
@@ -845,4 +845,333 @@ button {
 .spin {
   animation: spin 1s linear infinite;
 }
+
+/* ==========================================================================
+   Progressive Mobile App (PWA) Native UI & Offline Styles
+   ========================================================================== */
+
+/* Offline Status Pill */
+.mobile-offline-banner {
+  background: linear-gradient(90deg, #f59e0b 0%, #d97706 100%);
+  color: #ffffff;
+  padding: 6px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+  position: sticky;
+  top: 0;
+  z-index: 99;
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from { transform: translateY(-100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* PWA Install Notification Bar */
+.mobile-pwa-install-bar {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  margin: 10px 14px 4px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  box-shadow: var(--shadow-md);
+  position: relative;
+  animation: slideDown 0.35s ease;
+  z-index: 30;
+}
+
+.pwa-install-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.pwa-icon-thumb {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: var(--primary-gradient);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 3px 8px rgba(16, 185, 129, 0.35);
+}
+
+.pwa-text {
+  min-width: 0;
+}
+
+.pwa-title {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.pwa-subtitle {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pwa-install-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.pwa-install-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  background: var(--primary-gradient);
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  box-shadow: 0 3px 8px rgba(16, 185, 129, 0.3);
+  transition: transform 0.15s ease;
+}
+
+.pwa-install-btn:active {
+  transform: scale(0.94);
+}
+
+.pwa-close-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  background: var(--bg-card-subtle);
+  transition: all 0.15s ease;
+}
+
+.pwa-close-btn:hover {
+  color: var(--text-primary);
+}
+
+/* iOS Instruction Tooltip */
+.ios-install-tooltip {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  box-shadow: var(--shadow-lg);
+  z-index: 100;
+  animation: fadeIn 0.2s ease;
+}
+
+.ios-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.step-num {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--primary-light);
+  color: var(--primary);
+  font-weight: 800;
+  font-size: 0.72rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Toast Message */
+.mobile-pwa-toast {
+  position: fixed;
+  bottom: calc(var(--bottom-nav-height) + 20px);
+  left: 20px;
+  right: 20px;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  background: #0f172a;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+  z-index: 100;
+  animation: slideUp 0.3s ease;
+}
+
+.mobile-pwa-toast.success {
+  background: linear-gradient(135deg, #065f46 0%, #047857 100%);
+  border: 1px solid #10b981;
+}
+
+/* Native Mobile Bottom Sheet Drawer ("More" Menu) */
+.mobile-sheet-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 100;
+  animation: fadeIn 0.2s ease;
+}
+
+.mobile-sheet-content {
+  width: 100%;
+  max-width: 600px;
+  background: var(--bg-card);
+  border-top-left-radius: var(--radius-xl);
+  border-top-right-radius: var(--radius-xl);
+  border-top: 1px solid var(--border-light);
+  padding: 10px 18px calc(env(safe-area-inset-bottom, 16px) + 20px);
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-modal);
+  animation: slideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.sheet-drag-handle {
+  width: 40px;
+  height: 4.5px;
+  background: var(--border-light);
+  border-radius: var(--radius-full);
+  margin: 4px auto 14px;
+}
+
+.sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.sheet-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.sheet-subtitle {
+  font-size: 0.74rem;
+  color: var(--text-secondary);
+}
+
+.mobile-sheet-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+@media (min-width: 480px) {
+  .mobile-sheet-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+}
+
+.sheet-item-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--bg-card-subtle);
+  border: 1px solid var(--border-light);
+  text-align: left;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.sheet-item-card:active {
+  transform: scale(0.97);
+  background: var(--primary-light);
+}
+
+.sheet-item-card.active {
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+
+.sheet-icon-wrap {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sheet-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.sheet-item-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.sheet-item-desc {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sheet-item-arrow {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* Touch Active Animations for Native App Feel */
+button:active,
+.btn:active,
+.app-card.clickable:active {
+  transform: scale(0.98);
+}
+
+.nav-tab-btn:active {
+  transform: scale(0.92);
+}
+
 
