@@ -9,12 +9,42 @@ let db;
 let auth;
 let messaging;
 
-const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || './config/serviceAccountKey.json';
-const resolvedPath = path.resolve(serviceAccountPath);
+let serviceAccount = null;
 
-if (fs.existsSync(resolvedPath)) {
+// 1. Try reading from environment variable (JSON string or base64)
+if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
   try {
-    const serviceAccount = JSON.parse(fs.readFileSync(resolvedPath, 'utf8'));
+    const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON.trim();
+    const jsonStr = raw.startsWith('{') ? raw : Buffer.from(raw, 'base64').toString('utf8');
+    serviceAccount = JSON.parse(jsonStr);
+  } catch (e) {
+    console.warn('⚠️ Could not parse FIREBASE_SERVICE_ACCOUNT_JSON:', e.message);
+  }
+}
+
+// 2. Try reading from file path (local or Render Secret File)
+if (!serviceAccount) {
+  const possiblePaths = [
+    process.env.FIREBASE_SERVICE_ACCOUNT_PATH,
+    '/etc/secrets/serviceAccountKey.json',
+    './config/serviceAccountKey.json'
+  ].filter(Boolean);
+
+  for (const p of possiblePaths) {
+    const resolvedPath = path.resolve(p);
+    if (fs.existsSync(resolvedPath)) {
+      try {
+        serviceAccount = JSON.parse(fs.readFileSync(resolvedPath, 'utf8'));
+        break;
+      } catch (err) {
+        console.warn(`⚠️ Failed reading service account from ${p}:`, err.message);
+      }
+    }
+  }
+}
+
+if (serviceAccount) {
+  try {
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
     });
@@ -23,7 +53,7 @@ if (fs.existsSync(resolvedPath)) {
     messaging = admin.messaging();
     console.log('✅ Firebase Admin SDK initialized successfully with credentials.');
   } catch (error) {
-    console.warn('⚠️ Failed to initialize Firebase Admin with service account file:', error.message);
+    console.warn('⚠️ Failed to initialize Firebase Admin with service account:', error.message);
   }
 }
 
