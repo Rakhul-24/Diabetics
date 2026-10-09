@@ -15,16 +15,22 @@
   "categories": ["medical", "health", "fitness", "lifestyle"],
   "icons": [
     {
-      "src": "/icon.svg",
-      "type": "image/svg+xml",
-      "sizes": "192x192 512x512",
-      "purpose": "any"
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
     },
     {
       "src": "/icon.svg",
       "type": "image/svg+xml",
       "sizes": "192x192 512x512",
-      "purpose": "maskable"
+      "purpose": "any"
     }
   ],
   "shortcuts": [
@@ -33,21 +39,21 @@
       "short_name": "Log Glucose",
       "description": "Record blood glucose reading instantly",
       "url": "/?action=log-glucose",
-      "icons": [{ "src": "/icon.svg", "sizes": "192x192" }]
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "AI Health Coach",
       "short_name": "AI Coach",
       "description": "Chat with GlucoCare AI Assistant",
       "url": "/?view=ai-coach",
-      "icons": [{ "src": "/icon.svg", "sizes": "192x192" }]
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "Emergency SOS",
       "short_name": "Emergency SOS",
       "description": "Rule of 15 and Emergency Medical ID",
       "url": "/?view=emergency",
-      "icons": [{ "src": "/icon.svg", "sizes": "192x192" }]
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }
