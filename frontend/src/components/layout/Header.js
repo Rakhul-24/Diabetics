@@ -5,14 +5,15 @@ import {
   Moon,
   AlertCircle,
   Calendar,
-  LogOut
+  LogOut,
+  Footprints
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useHealth } from '../../context/HealthContext';
 
 export const Header = ({ currentView, onViewChange, onOpenNotifications }) => {
   const { theme, toggleTheme } = useTheme();
-  const { user, notifications, logout } = useHealth();
+  const { user, notifications, logout, stepsData, isWalking, isPedometerActive, cadence } = useHealth();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
@@ -71,6 +72,44 @@ export const Header = ({ currentView, onViewChange, onOpenNotifications }) => {
       </div>
 
       <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+        {/* Live Background Step Counter Badge */}
+        <button
+          onClick={() => onViewChange('exercise')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5,
+            padding: '5px 9px',
+            borderRadius: 'var(--radius-full)',
+            background: isWalking ? 'rgba(16, 185, 129, 0.16)' : 'var(--bg-card-subtle)',
+            border: isWalking ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid var(--border-light)',
+            fontSize: '0.73rem',
+            fontWeight: 800,
+            color: isWalking ? 'var(--primary)' : 'var(--text-primary)',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+            transition: 'all 0.2s ease'
+          }}
+          title={isWalking ? `Active Walking • ${cadence} steps/min` : "Live Mobile Step Sensor Active • Tap to open activity"}
+        >
+          <span
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              background: isPedometerActive ? '#10b981' : '#94a3b8',
+              boxShadow: isPedometerActive ? '0 0 6px #10b981' : 'none'
+            }}
+          />
+          <Footprints size={12} color="var(--primary)" />
+          <span>{stepsData?.current?.toLocaleString() || 0}</span>
+          {isWalking && (
+            <span style={{ fontSize: '0.62rem', opacity: 0.85, fontWeight: 700 }}>
+              {cadence} spm
+            </span>
+          )}
+        </button>
+
         {/* Prominent Live Date Badge */}
         <div
           className="header-date-badge"

@@ -10,19 +10,37 @@ import {
   Sparkles,
   Calendar,
   CheckCircle2,
+  CheckCircle2,
   Award,
-  BarChart2
+  BarChart2,
+  Sunrise,
+  Sun,
+  Sunset,
+  Flame,
+  Lock
 } from 'lucide-react';
 import { useHealth } from '../context/HealthContext';
 
 export const StepTrackerView = () => {
   const {
+    user,
     stepsData,
+    preMealWalks,
     stepHistory,
-    addSteps,
     resetTodaySteps,
     isPedometerActive,
+    toggleStepTracking,
     setIsPedometerActive,
+    backgroundKeepAlive,
+    toggleBackgroundKeepAlive,
+    stepSensitivity,
+    setStepSensitivity,
+    isWalking,
+    cadence,
+    motionIntensity,
+    sensorValues,
+    sensorStatus,
+    requestSensorPermission,
     dailyFoodPlan,
     applySuggestedStepsGoal
   } = useHealth();
@@ -31,166 +49,8 @@ export const StepTrackerView = () => {
   const [selectedHistoryDay, setSelectedHistoryDay] = useState(null);
   const [showResetModal, setShowResetModal] = useState(false);
 
-  // Sensor state
-  const [sensorValues, setSensorValues] = useState({ x: 0, y: 0, z: 0, magnitude: 9.8 });
-  const [motionIntensity, setMotionIntensity] = useState(0);
-  const [stepSensitivity, setStepSensitivity] = useState('normal'); // 'low', 'normal', 'high'
-  const [cadence, setCadence] = useState(0); // steps per minute
-  const [isWalking, setIsWalking] = useState(false);
-
-  // Post-meal walk session timer
-  const [postMealTimerActive, setPostMealTimerActive] = useState(false);
-  const [postMealSeconds, setPostMealSeconds] = useState(15 * 60); // 15 mins target
-  const [postMealSteps, setPostMealSteps] = useState(0);
-
-  // References for peak detection algorithm
-  const lastStepTimeRef = useRef(0);
-  const lastMagnitudeRef = useRef(9.8);
-  const isRisingRef = useRef(false);
-  const stepTimesHistoryRef = useRef([]);
-  const walkingTimeoutRef = useRef(null);
-
-  // Sensitivity thresholds (magnitude difference in m/s^2)
-  const getThreshold = useCallback(() => {
-    switch (stepSensitivity) {
-      case 'high': return 1.8;
-      case 'low': return 3.2;
-      default: return 2.3; // normal
-    }
-  }, [stepSensitivity]);
-
-  // Handle a step detected
-  const handleStepDetected = useCallback((count = 1) => {
-    const now = Date.now();
-    lastStepTimeRef.current = now;
-
-    // Update global app state (with day check & persistent storage)
-    addSteps(count);
-
-    // Update local session
-    if (postMealTimerActive) {
-      setPostMealSteps(prev => prev + count);
-    }
-
-    // Walking status flag
-    setIsWalking(true);
-    if (walkingTimeoutRef.current) clearTimeout(walkingTimeoutRef.current);
-    walkingTimeoutRef.current = setTimeout(() => {
-      setIsWalking(false);
-      setCadence(0);
-    }, 2800);
-
-    // Calculate cadence (steps in last 10 seconds extrapolated to 60s)
-    stepTimesHistoryRef.current.push(now);
-    const tenSecondsAgo = now - 10000;
-    stepTimesHistoryRef.current = stepTimesHistoryRef.current.filter(t => t > tenSecondsAgo);
-    const recentCount = stepTimesHistoryRef.current.length;
-    const computedCadence = Math.round((recentCount / 10) * 60);
-    setCadence(computedCadence);
-  }, [addSteps, postMealTimerActive]);
-
-  // Accelerometer DeviceMotion Listener
-  useEffect(() => {
-    if (!isPedometerActive) return;
-
-    if (typeof window === 'undefined' || !window.DeviceMotionEvent) {
-      return;
-    }
-
-    const threshold = getThreshold();
-
-    const handleMotion = (event) => {
-      const acc = event.accelerationIncludingGravity || event.acceleration;
-      if (!acc) return;
-
-      const x = acc.x || 0;
-      const y = acc.y || 0;
-      const z = acc.z || 0;
-
-      // 3D vector magnitude: sqrt(x^2 + y^2 + z^2)
-      const rawMagnitude = Math.sqrt(x * x + y * y + z * z);
-      
-      // Low-pass filter for smooth motion
-      const magnitude = (lastMagnitudeRef.current * 0.3) + (rawMagnitude * 0.7);
-      const intensity = Math.max(0, Math.min(100, Math.round(Math.abs(magnitude - 9.8) * 15)));
-
-      setSensorValues({
-        x: Number(x.toFixed(2)),
-        y: Number(y.toFixed(2)),
-        z: Number(z.toFixed(2)),
-        magnitude: Number(magnitude.toFixed(2))
-      });
-      setMotionIntensity(intensity);
-
-      const now = Date.now();
-      const timeSinceLastStep = now - lastStepTimeRef.current;
-      const magDiff = magnitude - 9.8;
-
-      // Step Peak Detection with debounce (min 280ms between steps)
-      if (magDiff > threshold && !isRisingRef.current && timeSinceLastStep > 280) {
-        isRisingRef.current = true;
-      } else if (magDiff < 0.4 && isRisingRef.current) {
-        isRisingRef.current = false;
-        handleStepDetected(1);
-      }
-
-      lastMagnitudeRef.current = magnitude;
-    };
-
-    window.addEventListener('devicemotion', handleMotion, { passive: true });
-
-    return () => {
-      window.removeEventListener('devicemotion', handleMotion);
-    };
-  }, [isPedometerActive, getThreshold, handleStepDetected]);
-
-  // Request Sensor Permission (required for iOS Safari and some modern browsers)
-  const requestMotionPermission = async () => {
-    if (
-      typeof DeviceMotionEvent !== 'undefined' &&
-      typeof DeviceMotionEvent.requestPermission === 'function'
-    ) {
-      try {
-        const response = await DeviceMotionEvent.requestPermission();
-        if (response === 'granted') {
-          setIsPedometerActive(true);
-        }
-      } catch (err) {
-        console.warn('DeviceMotionEvent permission error:', err);
-        setIsPedometerActive(true);
-      }
-    } else {
-      // Android & Desktop Chrome
-      setIsPedometerActive(true);
-    }
-  };
-
-  // Post-meal countdown timer
-  useEffect(() => {
-    let interval = null;
-    if (postMealTimerActive && postMealSeconds > 0) {
-      interval = setInterval(() => {
-        setPostMealSeconds(prev => prev - 1);
-      }, 1000);
-    } else if (postMealSeconds === 0) {
-      setPostMealTimerActive(false);
-    }
-    return () => clearInterval(interval);
-  }, [postMealTimerActive, postMealSeconds]);
-
   const toggleTracking = () => {
-    if (!isPedometerActive) {
-      requestMotionPermission();
-    } else {
-      setIsPedometerActive(false);
-      setCadence(0);
-      setIsWalking(false);
-    }
-  };
-
-  // Manual Step Simulation (Useful for testing without physical phone motion)
-  const handleSimulateStep = (count = 1) => {
-    handleStepDetected(count);
+    toggleStepTracking();
   };
 
   const stepsGoal = stepsData?.goal || 8000;
@@ -366,7 +226,7 @@ export const StepTrackerView = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', fontSize: '0.74rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--primary)', fontWeight: 700 }}>
               <ShieldCheck size={14} />
-              <span>{dailyFoodPlan.stepsGuidance.postMealWalkMinutes || 15} min Post-Meal Walk Recommended</span>
+              <span>Pre-Meal Walking Activity Recommended</span>
             </div>
             <div style={{ color: 'var(--text-muted)' }}>•</div>
             <div style={{ color: 'var(--warning)', fontWeight: 700 }}>
@@ -547,37 +407,21 @@ export const StepTrackerView = () => {
           </div>
         </div>
 
-        {/* Quick Test / Manual Step Add Buttons */}
-        <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border-light)' }}>
-          <button
-            onClick={() => handleSimulateStep(1)}
-            className="btn btn-secondary"
-            style={{ padding: '6px 12px', fontSize: '0.76rem' }}
-            title="Simulate 1 step"
-          >
-            +1 Step
-          </button>
-          <button
-            onClick={() => handleSimulateStep(50)}
-            className="btn btn-secondary"
-            style={{ padding: '6px 12px', fontSize: '0.76rem' }}
-          >
-            +50 Steps
-          </button>
-          <button
-            onClick={() => handleSimulateStep(250)}
-            className="btn btn-secondary"
-            style={{ padding: '6px 12px', fontSize: '0.76rem' }}
-          >
-            +250 Steps
-          </button>
+        {/* Hardware Sensor Lock Notice (Manual Step Entry Removed) */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border-light)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+            <Lock size={13} color="var(--primary)" />
+            <span><strong>Automatic Hardware Detection:</strong> Steps are counted via phone accelerometer. Manual step entries are disabled.</span>
+          </div>
+
           <button
             onClick={() => setShowResetModal(true)}
             className="btn btn-secondary"
-            style={{ padding: '6px 10px', fontSize: '0.76rem', color: 'var(--danger)' }}
+            style={{ padding: '5px 10px', fontSize: '0.74rem', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 4 }}
             title="Reset steps for today"
           >
-            <RotateCcw size={13} />
+            <RotateCcw size={12} />
+            <span>Reset Count</span>
           </button>
         </div>
       </div>
@@ -917,72 +761,94 @@ export const StepTrackerView = () => {
         </div>
       )}
 
-      {/* 4. Post-Meal Glucose Walking Coach Session */}
+      {/* 4. Pre-Meal Walking Activity Allocation Breakdown */}
       <div
         className="app-card"
         style={{
-          background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(16, 185, 129, 0.08) 100%)',
-          border: '1px solid rgba(245, 158, 11, 0.3)',
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border-light)',
           padding: '16px 18px'
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-            <Sparkles size={17} color="var(--warning)" />
-            <h3 style={{ fontSize: '0.94rem', fontWeight: 800 }}>Post-Meal Sugar Lowering Walk</h3>
+            <Sparkles size={17} color="var(--primary)" />
+            <h3 style={{ fontSize: '0.94rem', fontWeight: 800 }}>Pre-Meal Walking Breakdown</h3>
           </div>
-          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--warning)', background: 'var(--warning-light)', padding: '2px 8px', borderRadius: 'var(--radius-full)' }}>
-            15 Min Goal
+          <span style={{ fontSize: '0.70rem', fontWeight: 700, color: 'var(--primary)', background: 'rgba(16,185,129,0.12)', padding: '2px 8px', borderRadius: 'var(--radius-full)' }}>
+            3 Pre-Meal Walks
           </span>
         </div>
 
-        <p style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', lineHeight: 1.45, marginBottom: 12 }}>
-          Walking for 15 minutes (~1,500 steps) within 30 minutes after eating activates muscle GLUT4 receptors, reducing blood glucose spikes by <strong>20-35 mg/dL</strong>.
+        <p style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', lineHeight: 1.45, marginBottom: 12 }}>
+          Steps taken before each meal stimulate muscular GLUT-4 glucose transporters, determining your personalized food recommendations 1 hour before eating.
         </p>
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-card)', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)' }}>
-          <div>
-            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>SESSION TIMER</div>
-            <div style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--text-primary)', fontFamily: 'monospace' }}>
-              {formatTimer(postMealSeconds)}
-            </div>
-            <div style={{ fontSize: '0.7rem', color: 'var(--primary)', fontWeight: 700 }}>
-              Session Steps: {postMealSteps.toLocaleString()}
-            </div>
-          </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+          {[
+            {
+              label: 'Before Breakfast',
+              icon: Sunrise,
+              color: '#f59e0b',
+              steps: preMealWalks?.breakfast?.steps || 0,
+              target: preMealWalks?.breakfast?.targetSteps || 2500,
+              calories: preMealWalks?.breakfast?.caloriesBurned || Math.round((preMealWalks?.breakfast?.steps || 0) * 0.04),
+              time: user?.mealTimes?.breakfast || '08:00'
+            },
+            {
+              label: 'Before Lunch',
+              icon: Sun,
+              color: '#10b981',
+              steps: preMealWalks?.lunch?.steps || 0,
+              target: preMealWalks?.lunch?.targetSteps || 3000,
+              calories: preMealWalks?.lunch?.caloriesBurned || Math.round((preMealWalks?.lunch?.steps || 0) * 0.04),
+              time: user?.mealTimes?.lunch || '13:00'
+            },
+            {
+              label: 'Before Dinner',
+              icon: Sunset,
+              color: '#8b5cf6',
+              steps: preMealWalks?.dinner?.steps || 0,
+              target: preMealWalks?.dinner?.targetSteps || 2500,
+              calories: preMealWalks?.dinner?.caloriesBurned || Math.round((preMealWalks?.dinner?.steps || 0) * 0.04),
+              time: user?.mealTimes?.dinner || '20:00'
+            }
+          ].map(walk => {
+            const Icon = walk.icon;
+            const pct = Math.min(100, Math.round((walk.steps / walk.target) * 100));
+            return (
+              <div
+                key={walk.label}
+                style={{
+                  padding: '10px 10px',
+                  background: 'var(--bg-card-subtle)',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--border-light)',
+                  textAlign: 'center'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, marginBottom: 4 }}>
+                  <Icon size={14} color={walk.color} />
+                  <span style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-primary)' }}>{walk.label}</span>
+                </div>
+                <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>Meal at {walk.time}</div>
 
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button
-              onClick={() => {
-                if (!postMealTimerActive) {
-                  setPostMealTimerActive(true);
-                  if (!isPedometerActive) requestMotionPermission();
-                } else {
-                  setPostMealTimerActive(false);
-                }
-              }}
-              className="btn btn-primary"
-              style={{
-                background: postMealTimerActive ? 'var(--warning)' : 'var(--primary)',
-                padding: '8px 14px',
-                fontSize: '0.78rem'
-              }}
-            >
-              {postMealTimerActive ? 'Pause Walk' : 'Start Post-Meal Walk'}
-            </button>
-            <button
-              onClick={() => {
-                setPostMealTimerActive(false);
-                setPostMealSeconds(15 * 60);
-                setPostMealSteps(0);
-              }}
-              className="btn btn-secondary"
-              style={{ padding: '8px 10px' }}
-              title="Reset Timer"
-            >
-              <RotateCcw size={14} />
-            </button>
-          </div>
+                <div style={{ fontSize: '1.15rem', fontWeight: 900, color: 'var(--text-primary)', margin: '4px 0 2px' }}>
+                  {walk.steps.toLocaleString()}
+                </div>
+                <div style={{ fontSize: '0.64rem', color: '#f59e0b', fontWeight: 700 }}>
+                  🔥 {walk.calories} kcal
+                </div>
+
+                <div style={{ width: '100%', height: 4, background: 'var(--border-light)', borderRadius: 2, overflow: 'hidden', marginTop: 6 }}>
+                  <div style={{ width: `${pct}%`, height: '100%', background: walk.color }} />
+                </div>
+                <div style={{ fontSize: '0.58rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                  {pct}% of {walk.target.toLocaleString()}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 

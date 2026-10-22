@@ -8,13 +8,35 @@ import {
   CheckCircle,
   LogOut,
   Smartphone,
-  Download
+  Download,
+  ShieldCheck,
+  Play,
+  Pause,
+  Clock,
+  UtensilsCrossed
 } from 'lucide-react';
 import { useHealth } from '../context/HealthContext';
 import { useTheme } from '../context/ThemeContext';
 
 export const SettingsView = () => {
-  const { user, setUser, logout } = useHealth();
+  const {
+    user,
+    setUser,
+    logout,
+    isPedometerActive,
+    toggleStepTracking,
+    backgroundKeepAlive,
+    toggleBackgroundKeepAlive,
+    stepSensitivity,
+    setStepSensitivity,
+    isWalking,
+    cadence,
+    motionIntensity,
+    sensorStatus,
+    sensorValues,
+    requestSensorPermission,
+    stepsData
+  } = useHealth();
   const { theme, toggleTheme } = useTheme();
 
   const [name, setName] = useState(user.name || '');
@@ -23,6 +45,9 @@ export const SettingsView = () => {
   const [height, setHeight] = useState(user.height || 175);
   const [diabetesType, setDiabetesType] = useState(user.diabetesType || 'Type 2');
   const [unitPreference, setUnitPreference] = useState(user.unitPreference || 'mg/dL');
+  const [breakfastTime, setBreakfastTime] = useState(user.mealTimes?.breakfast || '08:00');
+  const [lunchTime, setLunchTime] = useState(user.mealTimes?.lunch || '13:00');
+  const [dinnerTime, setDinnerTime] = useState(user.mealTimes?.dinner || '20:00');
   const [geminiApiKey, setGeminiApiKey] = useState(user.geminiApiKey || localStorage.getItem('gemini_api_key') || '');
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [installPrompt, setInstallPrompt] = useState(null);
@@ -73,16 +98,25 @@ export const SettingsView = () => {
     } else {
       localStorage.removeItem('gemini_api_key');
     }
-    setUser(prev => ({
-      ...prev,
-      name,
-      age: Number(age),
-      weight: Number(weight),
-      height: Number(height),
-      diabetesType,
-      unitPreference,
-      geminiApiKey: geminiApiKey.trim()
-    }));
+    setUser(prev => {
+      const updated = {
+        ...prev,
+        name,
+        age: Number(age),
+        weight: Number(weight),
+        height: Number(height),
+        diabetesType,
+        unitPreference,
+        mealTimes: {
+          breakfast: breakfastTime,
+          lunch: lunchTime,
+          dinner: dinnerTime
+        },
+        geminiApiKey: geminiApiKey.trim()
+      };
+      localStorage.setItem('glucocare_user', JSON.stringify(updated));
+      return updated;
+    });
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 2000);
   };
@@ -164,6 +198,76 @@ export const SettingsView = () => {
               <option value="Prediabetes">Prediabetes</option>
               <option value="Gestational">Gestational Diabetes</option>
             </select>
+          </div>
+        </div>
+
+        {/* Daily Meal Times Card (1-Hour Pre-Meal Food Algorithm) */}
+        <div className="app-card" style={{ padding: '14px 16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <UtensilsCrossed size={18} color="var(--primary)" />
+              <h3 style={{ fontSize: '0.95rem', fontWeight: 800 }}>Meal Eating Times</h3>
+            </div>
+            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--primary)', background: 'rgba(16,185,129,0.1)', padding: '2px 8px', borderRadius: 'var(--radius-full)' }}>
+              1-Hr Pre-Meal AI
+            </span>
+          </div>
+
+          <p style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.45 }}>
+            Our clinical algorithm analyzes your walking steps and calorie burn <strong>1 hour before each meal</strong> to recommend foods that prevent low blood sugar crashes or sedentary glucose spikes.
+          </p>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 10 }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label" style={{ fontSize: '0.70rem', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <Clock size={11} color="var(--primary)" />
+                <span>Breakfast</span>
+              </label>
+              <input
+                type="time"
+                className="form-input"
+                value={breakfastTime}
+                onChange={e => setBreakfastTime(e.target.value)}
+                style={{ padding: '8px 6px', fontSize: '0.82rem', textAlign: 'center' }}
+              />
+              <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', display: 'block', marginTop: 3 }}>
+                Alert at {breakfastTime ? `${String((Number(breakfastTime.split(':')[0]) - 1 + 24) % 24).padStart(2, '0')}:${breakfastTime.split(':')[1]}` : '--:--'}
+              </span>
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label" style={{ fontSize: '0.70rem', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <Clock size={11} color="var(--primary)" />
+                <span>Lunch</span>
+              </label>
+              <input
+                type="time"
+                className="form-input"
+                value={lunchTime}
+                onChange={e => setLunchTime(e.target.value)}
+                style={{ padding: '8px 6px', fontSize: '0.82rem', textAlign: 'center' }}
+              />
+              <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', display: 'block', marginTop: 3 }}>
+                Alert at {lunchTime ? `${String((Number(lunchTime.split(':')[0]) - 1 + 24) % 24).padStart(2, '0')}:${lunchTime.split(':')[1]}` : '--:--'}
+              </span>
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label" style={{ fontSize: '0.70rem', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <Clock size={11} color="var(--primary)" />
+                <span>Dinner</span>
+              </label>
+              <input
+                type="time"
+                className="form-input"
+                value={dinnerTime}
+                onChange={e => setDinnerTime(e.target.value)}
+                style={{ padding: '8px 6px', fontSize: '0.82rem', textAlign: 'center' }}
+              />
+              <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', display: 'block', marginTop: 3 }}>
+                Alert at {dinnerTime ? `${String((Number(dinnerTime.split(':')[0]) - 1 + 24) % 24).padStart(2, '0')}:${dinnerTime.split(':')[1]}` : '--:--'}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -282,6 +386,172 @@ export const SettingsView = () => {
           )}
         </div>
       </form>
+
+      {/* 1.5. Mobile Step Sensor & Background Pedometer Settings */}
+      <div
+        className="app-card"
+        style={{
+          padding: '16px 18px',
+          border: '1.5px solid rgba(16, 185, 129, 0.35)',
+          background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(14, 165, 233, 0.06) 100%)'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 'var(--radius-xs)',
+                background: isPedometerActive ? 'linear-gradient(135deg, var(--primary) 0%, #059669 100%)' : 'var(--bg-card-subtle)',
+                color: isPedometerActive ? '#fff' : 'var(--text-muted)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <Smartphone size={18} />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <h3 style={{ fontSize: '0.96rem', fontWeight: 800, margin: 0 }}>Mobile Step Sensor & Background Tracking</h3>
+                <span
+                  style={{
+                    fontSize: '0.64rem',
+                    fontWeight: 800,
+                    padding: '2px 7px',
+                    borderRadius: 'var(--radius-full)',
+                    background: isWalking
+                      ? 'rgba(16, 185, 129, 0.2)'
+                      : isPedometerActive
+                      ? 'rgba(16, 185, 129, 0.12)'
+                      : 'rgba(239, 68, 68, 0.12)',
+                    color: isWalking ? '#15803d' : isPedometerActive ? 'var(--primary)' : 'var(--danger)',
+                    border: `1px solid ${isPedometerActive ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`
+                  }}
+                >
+                  {isWalking ? `● WALKING (${cadence} SPM)` : isPedometerActive ? '● ACTIVE' : '○ PAUSED'}
+                </span>
+              </div>
+              <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: 2, margin: 0 }}>
+                Counts physical walking steps in real time via phone 3-axis accelerometer
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={toggleStepTracking}
+            className="btn btn-outline"
+            style={{
+              padding: '5px 12px',
+              fontSize: '0.74rem',
+              fontWeight: 700,
+              borderRadius: 'var(--radius-full)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              borderColor: isPedometerActive ? 'var(--border-light)' : 'var(--primary)',
+              color: isPedometerActive ? 'var(--text-secondary)' : 'var(--primary)'
+            }}
+          >
+            {isPedometerActive ? <Pause size={12} /> : <Play size={12} />}
+            <span>{isPedometerActive ? 'Pause Sensor' : 'Start Sensor'}</span>
+          </button>
+        </div>
+
+        {/* Live Sensor Telemetry */}
+        <div style={{ marginBottom: 12, padding: '10px 12px', background: 'var(--bg-card)', borderRadius: 'var(--radius-xs)', border: '1px solid var(--border-light)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-secondary)', marginBottom: 5 }}>
+            <span>Live Motion: <strong>{sensorValues?.magnitude || 0} m/s²</strong> (Δ {sensorValues?.dynamicDelta || 0})</span>
+            <span>Today's Recorded: <strong style={{ color: 'var(--primary)' }}>{stepsData?.current?.toLocaleString() || 0} steps</strong></span>
+          </div>
+          <div style={{ width: '100%', height: 6, background: 'var(--border-light)', borderRadius: 3, overflow: 'hidden' }}>
+            <div
+              style={{
+                width: `${motionIntensity}%`,
+                height: '100%',
+                background: motionIntensity > 40 ? 'var(--primary-gradient)' : 'var(--secondary)',
+                transition: 'width 0.12s ease'
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Background Pocket Tracking Switch */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: 'var(--bg-card)', borderRadius: 'var(--radius-xs)', border: '1px solid var(--border-light)', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+          <div>
+            <div style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <ShieldCheck size={14} color="var(--primary)" />
+              <span>Background Pocket Tracking</span>
+            </div>
+            <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
+              Uses audio keep-alive so step sensor keeps counting when screen locks or is placed in pocket
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={toggleBackgroundKeepAlive}
+            className="btn btn-outline"
+            style={{
+              padding: '4px 10px',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              borderRadius: 'var(--radius-full)',
+              background: backgroundKeepAlive ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+              color: backgroundKeepAlive ? 'var(--primary)' : 'var(--text-muted)',
+              borderColor: backgroundKeepAlive ? 'var(--primary)' : 'var(--border-light)'
+            }}
+          >
+            {backgroundKeepAlive ? 'Active (Recommended)' : 'Disabled'}
+          </button>
+        </div>
+
+        {/* Sensitivity Selector */}
+        <div style={{ padding: '10px 12px', background: 'var(--bg-card)', borderRadius: 'var(--radius-xs)', border: '1px solid var(--border-light)' }}>
+          <div style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-secondary)', marginBottom: 6 }}>
+            Motion Sensitivity Preset:
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {[
+              { id: 'high', label: 'High (Loose Pocket / Purse)' },
+              { id: 'normal', label: 'Normal (Standard Walk)' },
+              { id: 'low', label: 'Low (Firm / Jogging)' }
+            ].map(s => (
+              <button
+                type="button"
+                key={s.id}
+                onClick={() => setStepSensitivity(s.id)}
+                style={{
+                  flex: 1,
+                  padding: '5px 8px',
+                  fontSize: '0.68rem',
+                  fontWeight: 700,
+                  borderRadius: 'var(--radius-xs)',
+                  border: `1px solid ${stepSensitivity === s.id ? 'var(--primary)' : 'var(--border-light)'}`,
+                  background: stepSensitivity === s.id ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-card-subtle)',
+                  color: stepSensitivity === s.id ? 'var(--primary)' : 'var(--text-secondary)',
+                  cursor: 'pointer'
+                }}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {sensorStatus === 'permission-needed' && (
+          <button
+            type="button"
+            onClick={requestSensorPermission}
+            className="btn btn-primary"
+            style={{ padding: '8px 14px', fontSize: '0.78rem', width: '100%', marginTop: 10 }}
+          >
+            Grant Motion Sensor Permission
+          </button>
+        )}
+      </div>
 
       {/* 2. Mobile App Installation & Phone Setup */}
       <div

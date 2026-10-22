@@ -18,6 +18,7 @@ import {
   Activity
 } from 'lucide-react';
 import { useHealth } from '../context/HealthContext';
+import { PreMealRecommendationCard } from '../components/common/PreMealRecommendationCard';
 
 export const DashboardView = ({ onViewChange, onOpenGlucoseModal }) => {
   const {
@@ -34,7 +35,11 @@ export const DashboardView = ({ onViewChange, onOpenGlucoseModal }) => {
     sleepData,
     stepsData,
     dailyFoodPlan,
-    mealPlan
+    mealPlan,
+    isWalking,
+    cadence,
+    isPedometerActive,
+    sensorStatus
   } = useHealth();
 
   const status = getGlucoseStatus(latestGlucose.readingMg);
@@ -329,9 +334,11 @@ export const DashboardView = ({ onViewChange, onOpenGlucoseModal }) => {
           style={{
             cursor: 'pointer',
             padding: '13px 15px',
-            background: 'var(--bg-card)',
+            background: isWalking
+              ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, var(--bg-card) 100%)'
+              : 'var(--bg-card)',
             borderRadius: 'var(--radius-sm)',
-            border: '1px solid var(--border-light)',
+            border: isWalking ? '1.5px solid rgba(16, 185, 129, 0.4)' : '1px solid var(--border-light)',
             boxShadow: 'var(--shadow-xs)',
             transition: 'all 0.15s ease'
           }}
@@ -340,8 +347,17 @@ export const DashboardView = ({ onViewChange, onOpenGlucoseModal }) => {
             <div style={{ width: 28, height: 28, borderRadius: 'var(--radius-xs)', background: 'rgba(16, 185, 129, 0.12)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Footprints size={15} />
             </div>
-            <span style={{ fontSize: '0.66rem', fontWeight: 800, color: 'var(--primary)' }}>
-              🟢 AUTO
+            <span
+              style={{
+                fontSize: '0.64rem',
+                fontWeight: 800,
+                color: isWalking ? '#15803d' : isPedometerActive ? 'var(--primary)' : 'var(--text-muted)',
+                background: isWalking ? 'rgba(16, 185, 129, 0.18)' : 'rgba(16, 185, 129, 0.08)',
+                padding: '2px 6px',
+                borderRadius: 'var(--radius-full)'
+              }}
+            >
+              {isWalking ? `🚶 ${cadence} SPM` : sensorStatus === 'permission-needed' ? '⚠️ ALLOW MOTION' : isPedometerActive ? '🟢 AUTO ON' : '○ PAUSED'}
             </span>
           </div>
           <div style={{ fontSize: '1.2rem', fontWeight: 900, lineHeight: 1.1 }}>
@@ -455,6 +471,9 @@ export const DashboardView = ({ onViewChange, onOpenGlucoseModal }) => {
         </div>
 
       </div>
+
+      {/* ── 4b. 1-HOUR PRE-MEAL FOOD RECOMMENDATION ALGORITHM ────────────────── */}
+      <PreMealRecommendationCard onNavigateToFood={() => onViewChange('food')} />
 
       {/* ── 5. AI CLINICAL DIET & STEP RECOMMENDATION HIGHLIGHT ───────────────── */}
       {dailyFoodPlan && (

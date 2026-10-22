@@ -724,3 +724,186 @@ Provide a warm, medically sound, practical answer formatted with bullet points a
     next(error);
   }
 }
+
+/**
+ * Controller: Pre-Meal Food Recommendation (1 Hour Before Eating Time)
+ * Integrates glucose level, steps walked before meal, and calories burned
+ * Correlating high walking -> low sugar risk (needs carbs/protein)
+ * and low walking -> high blood sugar spike risk (needs strict low-carb/fiber)
+ */
+export async function preMealRecommendation(req, res, next) {
+  try {
+    const { user = {}, latestGlucose = 110, stepsBeforeMeal = 0, mealType = 'lunch', mealTime = '13:00', apiKey: clientApiKey } = req.body || {};
+    const weightKg = Number(user.weight) || 72;
+    const caloriesBurned = Math.round((Number(stepsBeforeMeal) || 0) * 0.04 * (weightKg / 70));
+    const distanceKm = Number(((Number(stepsBeforeMeal) || 0) * 0.000762).toFixed(2));
+    const glucoseVal = Number(latestGlucose) || 110;
+
+    const isHighSteps = stepsBeforeMeal >= 4000 || caloriesBurned >= 160;
+    const isLowSteps = stepsBeforeMeal < 2000;
+    const isHypo = glucoseVal < 70;
+    const isHighGlucose = glucoseVal > 140;
+
+    const geminiModel = getGeminiModel(clientApiKey) || defaultModel;
+
+    if (geminiModel) {
+      try {
+        const prompt = `You are a world-class Clinical Diabetologist and Indian Nutritionist.
+Provide an urgent 1-HOUR PRE-MEAL food recommendation for a diabetic patient.
+
+PATIENT VITALS & SCHEDULE:
+- Name: ${user.name || 'Patient'}, Age: ${user.age || 42}, Weight: ${weightKg} kg, Height: ${user.height || 175} cm
+- Diabetes Diagnosis: ${user.diabetesType || 'Type 2 Diabetes'}
+- Upcoming Meal: ${mealType.toUpperCase()} (Eating Time: ${mealTime}, Alert given 1 hr prior)
+- Current Blood Glucose: ${glucoseVal} mg/dL
+- Steps Walked Before Meal: ${stepsBeforeMeal} steps
+- Walking Distance: ${distanceKm} km
+- Calories Burned During Walking: ${caloriesBurned} kcal
+
+CRITICAL MEDICAL PHYSIOLOGY RULES:
+1. High walking activity (${stepsBeforeMeal} steps, ${caloriesBurned} kcal burned) causes GLUT4 translocation and glycogen depletion. If glucose is low or normal, patient faces a severe LOW SUGAR (exercise-induced hypoglycemia) risk! Recommend protective complex carbs (+20g to +30g) and lean protein to prevent crash.
+2. Low walking activity (${stepsBeforeMeal} steps, ${caloriesBurned} kcal burned) leaves peripheral muscles insulin-resistant. Consuming normal carbs will cause a dangerous HIGH BLOOD SUGAR spike (>200 mg/dL)! Recommend strict low-GI (<35), high-soluble-fiber, vegetable/sprout-rich Indian foods to protect glucose levels.
+3. ALL recommended meals MUST BE AUTHENTIC INDIAN DISHES (e.g. Moong dal cheela, Jowar/Bajra roti, Palak paneer, Karela sabzi, Lauki soup, Sprouts chaat, Daliya khichdi).
+
+Return PURE JSON ONLY with format:
+{
+  "alertBadge": "string",
+  "alertLevel": "warning" | "danger" | "success" | "info",
+  "walkingImpactType": "low_sugar_risk" | "high_sugar_spike_risk" | "optimal_balance",
+  "carbAdjustmentGram": number,
+  "carbAdjustmentReason": "string",
+  "physiologicalRationale": "string (explaining how walking/calories burned influenced blood sugar and this recommendation)",
+  "postMealWalkMinutes": number,
+  "recommendedMeals": [
+    {
+      "name": "string",
+      "icon": "string",
+      "calories": number,
+      "carbs": number,
+      "protein": number,
+      "fat": number,
+      "fiber": number,
+      "giIndex": number,
+      "giRating": "string",
+      "portion": "string",
+      "glycemicReason": "string",
+      "ingredients": ["string"],
+      "recipe": "string"
+    }
+  ],
+  "recommendedBeverage": "string",
+  "foodsToPrioritize": ["string"],
+  "foodsToAvoid": ["string"],
+  "actionAdvice": "string"
+}`;
+
+        const result = await geminiModel.generateContent(prompt);
+        const responseText = result.response.text().trim();
+        let jsonStr = responseText;
+        const codeBlockMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+        if (codeBlockMatch) {
+          jsonStr = codeBlockMatch[1];
+        } else {
+          const firstBrace = responseText.indexOf('{');
+          const lastBrace = responseText.lastIndexOf('}');
+          if (firstBrace !== -1 && lastBrace !== -1) {
+            jsonStr = responseText.substring(firstBrace, lastBrace + 1);
+          }
+        }
+        const parsed = JSON.parse(jsonStr);
+        return res.status(200).json({
+          success: true,
+          source: 'Google Gemini AI',
+          recommendation: {
+            ...parsed,
+            id: `prm_${mealType}_${Date.now()}`,
+            mealType,
+            scheduledEatingTime: mealTime,
+            metrics: {
+              currentGlucose: glucoseVal,
+              stepsWalked: stepsBeforeMeal,
+              distanceKm,
+              caloriesBurned
+            }
+          }
+        });
+      } catch (geminiErr) {
+        console.warn('Gemini pre-meal recommendation fallback:', geminiErr.message);
+      }
+    }
+
+    // Algorithmic Fallback Response
+    const fallbackRecommendation = {
+      alertBadge: isHypo
+        ? '⚠️ CRITICAL: Hypoglycemia Risk'
+        : (isHighSteps && glucoseVal < 100)
+        ? '⚠️ High Walking Low-Sugar Warning'
+        : (isLowSteps && isHighGlucose)
+        ? '🚨 Sedentary High-Spike Risk'
+        : isHighSteps
+        ? '✅ Exercise Glucose Clearance Active'
+        : '📊 Balanced Pre-Meal Profile',
+      alertLevel: isHypo || (isLowSteps && isHighGlucose) ? 'danger' : isHighSteps && glucoseVal < 100 ? 'warning' : 'success',
+      walkingImpactType: isHypo || (isHighSteps && glucoseVal < 100) ? 'low_sugar_risk' : isLowSteps ? 'high_sugar_spike_risk' : 'optimal_balance',
+      carbAdjustmentGram: isHypo ? 35 : (isHighSteps && glucoseVal < 100) ? 25 : isLowSteps ? -20 : 0,
+      carbAdjustmentReason: isHighSteps
+        ? `Burned ${caloriesBurned} kcal from ${stepsBeforeMeal} steps. High muscle glucose uptake requires complex carbs to prevent hypoglycemia.`
+        : isLowSteps
+        ? `Low activity (${stepsBeforeMeal} steps, ${caloriesBurned} kcal) reduces insulin sensitivity. Carbs reduced to avoid blood sugar spike.`
+        : 'Moderate activity supports balanced low-GI meal.',
+      physiologicalRationale: isHighSteps && glucoseVal < 100
+        ? `You walked ${stepsBeforeMeal} steps burning ~${caloriesBurned} kcal before ${mealType}. Vigorous walking stimulates insulin-independent GLUT4 glucose uptake, putting you at risk of low sugar. Wholesome complex carbs and protein are prescribed to stabilize your glucose.`
+        : isLowSteps && isHighGlucose
+        ? `Warning: Having walked only ${stepsBeforeMeal} steps (${caloriesBurned} kcal), your inactive muscles have sluggish glucose absorption. Consuming standard carbs will cause high blood sugar spikes. Low-carb, high-fiber Indian food and a post-meal walk are essential.`
+        : `Pre-meal check complete for ${mealType}. Steps walked: ${stepsBeforeMeal} (${caloriesBurned} kcal burned), Blood glucose: ${glucoseVal} mg/dL.`,
+      postMealWalkMinutes: isLowSteps ? 20 : 10,
+      recommendedMeals: [
+        {
+          name: isHighSteps
+            ? 'Moong Dal Cheela with Paneer & Mint Chutney'
+            : 'Karela Bhindi Sabzi with 1 Jowar Roti & Sprout Salad',
+          icon: isHighSteps ? '🥞' : '🥗',
+          calories: isHighSteps ? 340 : 260,
+          carbs: isHighSteps ? 42 : 25,
+          protein: isHighSteps ? 18 : 14,
+          fat: isHighSteps ? 10 : 7,
+          fiber: isHighSteps ? 8 : 11,
+          giIndex: isHighSteps ? 38 : 28,
+          giRating: 'Low GI',
+          portion: 'Standard diabetic serving with cucumber salad',
+          glycemicReason: isHighSteps
+            ? 'Protects against exercise-induced low sugar while replenishing glycogen safely.'
+            : 'Minimizes postprandial glucose spike during sedentary pre-meal window.',
+          ingredients: ['Indian pulses', 'Fresh vegetables', 'Traditional herbs'],
+          recipe: 'Cook fresh on moderate heat with minimal cold-pressed oil.'
+        }
+      ],
+      recommendedBeverage: isHighSteps ? 'Unsweetened Buttermilk (Chaas) with Jeera' : 'Warm Methi Seed Infused Water',
+      foodsToPrioritize: ['Moong dal', 'Methi', 'Karela', 'Paneer', 'Sprouts'],
+      foodsToAvoid: ['Refined flour', 'Sugar sweets', 'Deep fried snacks', 'White rice'],
+      actionAdvice: isLowSteps
+        ? 'Low pre-meal walking detected. Prioritize high-fiber, low-carb options to keep blood sugar stable.'
+        : 'Enjoy your meal in peace. Stay well hydrated.'
+    };
+
+    return res.status(200).json({
+      success: true,
+      source: 'Clinical Algorithmic Engine',
+      recommendation: {
+        ...fallbackRecommendation,
+        id: `prm_${mealType}_${Date.now()}`,
+        mealType,
+        scheduledEatingTime: mealTime,
+        metrics: {
+          currentGlucose: glucoseVal,
+          stepsWalked: stepsBeforeMeal,
+          distanceKm,
+          caloriesBurned
+        }
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+

@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useHealth } from '../context/HealthContext';
 import { DiabetesAiEngine } from '../services/aiService';
+import { PreMealRecommendationCard } from '../components/common/PreMealRecommendationCard';
 
 // Comprehensive Don't Foods Database with Clinical Risk Categories & Healthy Indian Swaps
 const DONT_FOODS_DATA = [
@@ -853,6 +854,9 @@ export const FoodView = () => {
           </div>
         )}
       </div>
+
+      {/* ── 1b. 1-HOUR PRE-MEAL FOOD RECOMMENDATION ALGORITHM ────────────────── */}
+      <PreMealRecommendationCard />
 
       {/* ── 2. USER-FRIENDLY SECTION TABS (MEALS / ASK AI / FOODS TO AVOID) ────── */}
       <div

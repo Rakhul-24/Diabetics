@@ -7,6 +7,7 @@ import { QuickActionModal } from './components/layout/QuickActionModal';
 import { GlucoseLogModal } from './components/common/GlucoseLogModal';
 import { NotificationDrawer } from './components/common/NotificationDrawer';
 import { InstallPwaBanner } from './components/common/InstallPwaBanner';
+import { SensorPermissionBanner } from './components/common/SensorPermissionBanner';
 
 // Views
 import { DashboardView } from './views/DashboardView';
@@ -93,6 +94,7 @@ function AppContent() {
       {/* Main Content Area */}
       <div className="main-wrapper">
         <InstallPwaBanner />
+        <SensorPermissionBanner />
         <Header
           currentView={currentView}
           onViewChange={setCurrentView}

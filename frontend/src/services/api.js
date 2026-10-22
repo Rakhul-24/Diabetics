@@ -43,8 +43,34 @@ export const apiService = {
     }
   },
 
+  // Pre-Meal (1 Hour Before) Food Recommendation based on Glucose + Steps Walked + Calories Burned
+  async getPreMealRecommendation({ user, latestGlucose, stepsBeforeMeal, mealType, mealTime, apiKey }) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 25000);
+      const response = await fetch(`${BASE_URL}/ai/pre-meal-recommendation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user,
+          latestGlucose,
+          stepsBeforeMeal,
+          mealType,
+          mealTime,
+          apiKey
+        }),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      if (!response.ok) return null;
+      return await response.json();
+    } catch (err) {
+      console.warn('Backend pre-meal recommendation unavailable:', err.message);
+      return null;
+    }
+  },
 
-  // Interactive AI Chat
+
   async generateChat(message, context) {
     try {
       const controller = new AbortController();

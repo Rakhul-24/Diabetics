@@ -18,6 +18,11 @@ export const initialUser = {
   targetGlucoseMin: 70,
   targetGlucoseMax: 140,
   unitPreference: 'mg/dL', // 'mg/dL' or 'mmol/L'
+  mealTimes: {
+    breakfast: '08:00',
+    lunch: '13:00',
+    dinner: '20:00'
+  },
   medicalHistory: [
     'Type 2 Diabetes (diagnosed 2019)',
     'Mild Hypertension',
