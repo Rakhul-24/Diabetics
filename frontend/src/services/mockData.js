@@ -35,6 +35,7 @@ export const initialUser = {
   emergencyContactPhone: '+91 98888 12345',
   doctorName: 'Dr. Priya Nair (Endocrinologist)',
   doctorPhone: '+91 44 2829 6000',
+  ambulancePhone: '108',
   doctorHospital: 'Apollo Diabetes Centre, Chennai'
 };
 

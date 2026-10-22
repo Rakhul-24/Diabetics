@@ -176,6 +176,10 @@ export const AuthView = () => {
       foodPreferences: ['Low-GI', 'Balanced Carbs'],
       emergencyContactName: '',
       emergencyContactPhone: '',
+      doctorName: '',
+      doctorPhone: '',
+      ambulancePhone: '108',
+      doctorHospital: '',
       mealTimes: {
         breakfast: breakfastTime,
         lunch: lunchTime,
