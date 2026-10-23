@@ -1,9 +1,13 @@
 import admin from 'firebase-admin';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 let db;
 let auth;
@@ -27,7 +31,9 @@ if (!serviceAccount) {
   const possiblePaths = [
     process.env.FIREBASE_SERVICE_ACCOUNT_PATH,
     '/etc/secrets/serviceAccountKey.json',
-    './config/serviceAccountKey.json'
+    path.join(__dirname, 'serviceAccountKey.json'),
+    './config/serviceAccountKey.json',
+    './backend/config/serviceAccountKey.json'
   ].filter(Boolean);
 
   for (const p of possiblePaths) {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Activity,
   User,
@@ -12,12 +12,19 @@ import {
   UtensilsCrossed,
   CheckCircle2,
   Heart,
-  Sparkles
+  Sparkles,
+  ExternalLink
 } from 'lucide-react';
 import { useHealth } from '../context/HealthContext';
 import { initialUser } from '../services/mockData';
 import { apiService } from '../services/api';
-import { auth, googleProvider, signInWithPopup } from '../config/firebase';
+import {
+  auth,
+  googleProvider,
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult
+} from '../config/firebase';
 
 // Official Multi-Colored Google SVG Icon
 const GoogleIcon = ({ size = 20 }) => (
@@ -132,7 +139,7 @@ export const AuthView = () => {
   };
 
   // Process authenticated Google profile
-  const handleGoogleSuccess = (googleUser, idToken = null) => {
+  const handleGoogleSuccess = useCallback((googleUser, idToken = null) => {
     setErrorMsg('');
     setIsLoading(true);
 
@@ -163,6 +170,45 @@ export const AuthView = () => {
       idToken
     });
     setOnboardingStep(0);
+  }, [login]);
+
+  // Check for redirect result on page load (for mobile & browsers with popup blocker)
+  useEffect(() => {
+    getRedirectResult(auth)
+      .then(async (result) => {
+        if (result && result.user) {
+          const firebaseUser = result.user;
+          const idToken = await firebaseUser.getIdToken().catch(() => null);
+          const googleProfile = {
+            name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Google User',
+            email: firebaseUser.email?.toLowerCase(),
+            picture: firebaseUser.photoURL || '',
+            sub: firebaseUser.uid
+          };
+          handleGoogleSuccess(googleProfile, idToken);
+        }
+      })
+      .catch((err) => {
+        console.warn('Firebase getRedirectResult notice:', err.code, err.message);
+      });
+  }, [handleGoogleSuccess]);
+
+  // Redirect Sign-In method (immune to popup blocking)
+  const handleGoogleSignInRedirect = async () => {
+    setErrorMsg('');
+    setIsLoading(true);
+    try {
+      await signInWithRedirect(auth, googleProvider);
+    } catch (err) {
+      setIsLoading(false);
+      if (err.code === 'auth/unauthorized-domain') {
+        setErrorMsg(
+          `Domain "${window.location.hostname}" is not authorized in Firebase. Add it in Firebase Console -> Authentication -> Settings -> Authorized Domains.`
+        );
+      } else {
+        setErrorMsg(err.message || 'Redirect sign-in failed. Please try again.');
+      }
+    }
   };
 
   // Primary: Trigger real Firebase Google Auth popup window
@@ -185,23 +231,37 @@ export const AuthView = () => {
 
       handleGoogleSuccess(googleProfile, idToken);
     } catch (err) {
-      setIsLoading(false);
       console.warn('Firebase signInWithPopup notice:', err.code, err.message);
 
-      if (err.code === 'auth/popup-closed-by-user') {
+      if (err.code === 'auth/popup-blocked') {
+        // Automatic fallback: trigger redirect if browser blocks popups
+        setErrorMsg('Browser blocked popup window. Switching to page redirect sign-in...');
+        try {
+          await signInWithRedirect(auth, googleProvider);
+        } catch (redirectErr) {
+          setIsLoading(false);
+          setErrorMsg('Popup was blocked by your browser. Please click the redirect link below or allow popups.');
+        }
+      } else if (err.code === 'auth/popup-closed-by-user') {
+        setIsLoading(false);
         setErrorMsg('Google Sign-In popup was closed. Please try again.');
-      } else if (err.code === 'auth/cancelled-popup-request') {
-        // Ignored
+      } else if (err.code === 'auth/unauthorized-domain') {
+        setIsLoading(false);
+        setErrorMsg(
+          `Domain "${window.location.hostname}" is not authorized in Firebase. Add it in Firebase Console -> Authentication -> Settings -> Authorized Domains.`
+        );
       } else if (
         err.code === 'auth/api-key-not-valid' ||
         err.code === 'auth/invalid-api-key' ||
         err.message?.includes('api-key') ||
         err.message?.includes('API key')
       ) {
+        setIsLoading(false);
         setErrorMsg(
           'Firebase API key not yet set in frontend/.env. Set REACT_APP_FIREBASE_API_KEY from Firebase Console, or test with the Demo Account below.'
         );
       } else {
+        setIsLoading(false);
         setErrorMsg(err.message || 'Google Sign-In failed. Please try again.');
       }
     }
@@ -391,6 +451,30 @@ export const AuthView = () => {
                 <GoogleIcon size={22} />
                 <span>{isLoading ? 'Opening Google Sign-In...' : 'Sign In with Google'}</span>
               </button>
+
+              {/* Redirect Alternative (Bypasses popup blockers) */}
+              <div style={{ marginTop: 12 }}>
+                <button
+                  type="button"
+                  disabled={isLoading}
+                  onClick={handleGoogleSignInRedirect}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--text-secondary)',
+                    fontSize: '0.74rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    textDecoration: 'underline'
+                  }}
+                >
+                  <ExternalLink size={12} />
+                  <span>Popups blocked? Click to sign in via page redirect</span>
+                </button>
+              </div>
             </div>
 
             {/* Demo Option */}

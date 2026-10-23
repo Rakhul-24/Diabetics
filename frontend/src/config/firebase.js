@@ -1,5 +1,12 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+  signOut
+} from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: process.env.REACT_APP_FIREBASE_API_KEY || "AIzaSyB3AmNB3YMYXWRlRCpRhd4zE8UhkccFdoA",
@@ -17,4 +24,11 @@ const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
-export { auth, googleProvider, signInWithPopup, signOut };
+export {
+  auth,
+  googleProvider,
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+  signOut
+};
