@@ -102,21 +102,36 @@ export async function googleLogin(req, res, next) {
     const uid = decoded?.uid || profile?.id || 'google_' + email.toLowerCase().replace(/[^a-z0-9_-]/g, '_');
     const picture = decoded?.picture || profile?.profileImageUrl || profile?.picture || '';
 
-    // Check if user exists in Firestore
-    let existingData = {};
+    // Check if user exists in Firestore (both by doc UID and by email)
+    let existingData = null;
     try {
       const snap = await db.collection('users').doc(uid).get();
       if (snap.exists) {
         existingData = snap.data();
+      } else {
+        const emailSnap = await db.collection('users').where('email', '==', email.toLowerCase()).get();
+        if (!emailSnap.empty) {
+          existingData = emailSnap.docs[0].data();
+        }
       }
-    } catch {}
+    } catch (err) {
+      console.warn('Firestore existing user lookup notice:', err.message);
+    }
+
+    // A user is considered existing if they already have clinical onboarding data saved
+    const isAlreadyOnboarded = !!(
+      existingData &&
+      (existingData.diabetesType || existingData.age || existingData.mealTimes)
+    );
+
+    const targetUid = existingData?.uid || uid;
 
     const userDoc = {
-      ...existingData,
-      uid,
-      name: name || existingData.name || 'User',
+      ...(existingData || {}),
+      uid: targetUid,
+      name: name || existingData?.name || 'User',
       email: email.toLowerCase(),
-      profileImageUrl: picture || existingData.profileImageUrl || '',
+      profileImageUrl: picture || existingData?.profileImageUrl || '',
       authProvider: 'google',
       ...(profile?.diabetesType ? { diabetesType: profile.diabetesType } : {}),
       ...(profile?.age ? { age: Number(profile.age) } : {}),
@@ -131,11 +146,12 @@ export async function googleLogin(req, res, next) {
       updatedAt: new Date().toISOString()
     };
 
-    await db.collection('users').doc(uid).set(userDoc, { merge: true });
+    await db.collection('users').doc(targetUid).set(userDoc, { merge: true });
 
     return res.status(200).json({
       success: true,
       message: 'Google Sign-In successful.',
+      isNewUser: !isAlreadyOnboarded && !profile?.diabetesType,
       user: userDoc
     });
   } catch (error) {

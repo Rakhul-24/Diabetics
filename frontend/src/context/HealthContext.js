@@ -225,7 +225,25 @@ export const HealthProvider = ({ children }) => {
         setAiChatMessages(starterChat);
         localStorage.setItem(newChatKey, JSON.stringify(starterChat));
       } else {
-        // Existing user: load their own chat history
+        // Existing user: load their own records & chat history
+        const userEmailKey = (customProfile?.email || customProfile?.id || 'default').toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+
+        const userGlucoseKey = `glucocare_glucose_${userEmailKey}`;
+        const savedGlucose = localStorage.getItem(userGlucoseKey);
+        if (savedGlucose) {
+          try {
+            setGlucoseReadings(JSON.parse(savedGlucose));
+          } catch {}
+        }
+
+        const userMedsKey = `glucocare_meds_${userEmailKey}`;
+        const savedMeds = localStorage.getItem(userMedsKey);
+        if (savedMeds) {
+          try {
+            setMedications(JSON.parse(savedMeds));
+          } catch {}
+        }
+
         const userChatKey = getUserChatKey(customProfile);
         const savedChat = localStorage.getItem(userChatKey);
         if (savedChat) {
@@ -611,11 +629,19 @@ export const HealthProvider = ({ children }) => {
 
   useEffect(() => {
     localStorage.setItem('glucocare_glucose', JSON.stringify(glucoseReadings));
-  }, [glucoseReadings]);
+    if (user?.email || user?.id) {
+      const userKey = (user.email || user.id).toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+      localStorage.setItem(`glucocare_glucose_${userKey}`, JSON.stringify(glucoseReadings));
+    }
+  }, [glucoseReadings, user?.email, user?.id]);
 
   useEffect(() => {
     localStorage.setItem('glucocare_meds', JSON.stringify(medications));
-  }, [medications]);
+    if (user?.email || user?.id) {
+      const userKey = (user.email || user.id).toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+      localStorage.setItem(`glucocare_meds_${userKey}`, JSON.stringify(medications));
+    }
+  }, [medications, user?.email, user?.id]);
 
   useEffect(() => {
     localStorage.setItem('glucocare_meals', JSON.stringify(mealPlan));

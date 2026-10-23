@@ -139,30 +139,69 @@ export const AuthView = () => {
   };
 
   // Process authenticated Google profile
-  const handleGoogleSuccess = useCallback((googleUser, idToken = null) => {
+  const handleGoogleSuccess = useCallback(async (googleUser, idToken = null) => {
     setErrorMsg('');
     setIsLoading(true);
 
     const cleanEmail = googleUser.email.trim().toLowerCase();
-    const accounts = getStoredAccounts();
-    const existingAccount = accounts[cleanEmail];
 
-    // Check if this Google user already has an existing completed profile
-    if (existingAccount && existingAccount.profile) {
-      setIsLoading(false);
-      apiService.googleLogin({ idToken, profile: existingAccount.profile }).catch(() => {});
-      login(existingAccount.profile, { isNewUser: false });
-      return;
+    // 1. Check local storage accounts
+    const accounts = getStoredAccounts();
+    let existingProfile = accounts[cleanEmail]?.profile;
+
+    // 2. Also check if stored glucocare_user belongs to this email
+    if (!existingProfile) {
+      try {
+        const savedUserStr = localStorage.getItem('glucocare_user');
+        if (savedUserStr) {
+          const parsed = JSON.parse(savedUserStr);
+          if (parsed && parsed.email?.toLowerCase() === cleanEmail && (parsed.age || parsed.diabetesType)) {
+            existingProfile = parsed;
+          }
+        }
+      } catch {}
     }
 
-    // Check if it's the demo account
+    // 3. Demo accounts
     if (cleanEmail === 'arjun.sharma@example.com' || cleanEmail === 'arjun.sharma@gmail.com') {
       setIsLoading(false);
       login(initialUser, { isNewUser: false });
       return;
     }
 
-    // New Google user: transition to clinical onboarding
+    // 4. If not found locally or lacks clinical data, check backend Firestore!
+    if (!existingProfile || (!existingProfile.age && !existingProfile.diabetesType)) {
+      try {
+        const backendRes = await apiService.googleLogin({
+          idToken,
+          profile: {
+            email: cleanEmail,
+            name: googleUser.name,
+            picture: googleUser.picture,
+            sub: googleUser.sub
+          }
+        });
+
+        if (backendRes && backendRes.user && (backendRes.user.age || backendRes.user.diabetesType) && !backendRes.isNewUser) {
+          existingProfile = backendRes.user;
+        }
+      } catch (err) {
+        console.warn('Backend existing profile lookup notice:', err.message);
+      }
+    }
+
+    // 5. Existing user with profile found!
+    if (existingProfile && (existingProfile.age || existingProfile.diabetesType)) {
+      accounts[cleanEmail] = { authProvider: 'google', profile: existingProfile };
+      localStorage.setItem('glucocare_accounts', JSON.stringify(accounts));
+      localStorage.setItem('glucocare_user', JSON.stringify(existingProfile));
+
+      setIsLoading(false);
+      login(existingProfile, { isNewUser: false });
+      return;
+    }
+
+    // 6. Truly new user without existing clinical data: transition to onboarding
     setIsLoading(false);
     setPendingGoogleUser({
       ...googleUser,
@@ -339,16 +378,21 @@ export const AuthView = () => {
       createdAt: new Date().toISOString()
     };
 
-    // Store in local accounts
+    // Store in local accounts and active user
     const accounts = getStoredAccounts();
     accounts[cleanEmail] = { authProvider: 'google', profile: newUserProfile };
     localStorage.setItem('glucocare_accounts', JSON.stringify(accounts));
+    localStorage.setItem('glucocare_user', JSON.stringify(newUserProfile));
 
-    // Sync with backend
-    apiService.googleLogin({
-      idToken: pendingGoogleUser.idToken,
-      profile: newUserProfile
-    }).catch(() => {});
+    // Await sync with backend Firestore
+    try {
+      await apiService.googleLogin({
+        idToken: pendingGoogleUser.idToken,
+        profile: newUserProfile
+      });
+    } catch (syncErr) {
+      console.warn('Backend sync warning on onboarding:', syncErr.message);
+    }
 
     setIsLoading(false);
     login(newUserProfile, { isNewUser: true });
