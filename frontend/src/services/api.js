@@ -104,6 +104,22 @@ export const apiService = {
     }
   },
 
+  // Google Sign-In backend synchronization
+  async googleLogin({ idToken, profile }) {
+    try {
+      const response = await fetch(`${BASE_URL}/auth/google-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken, profile })
+      });
+      if (!response.ok) return null;
+      return await response.json();
+    } catch (err) {
+      console.warn('Backend Google login sync failed (working offline):', err.message);
+      return null;
+    }
+  },
+
   // Health check
   async checkHealth() {
     try {

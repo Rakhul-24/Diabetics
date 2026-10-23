@@ -117,9 +117,99 @@ export function classifyGlucose(glucoseMg = 110) {
 }
 
 /**
- * Find the next upcoming meal and calculate the 1-hour pre-meal window
+ * Format 24h 'HH:mm' time string into friendly 12h format e.g. '1:00 PM'
  */
-export function getUpcomingMealWindow(mealTimes = {}) {
+export function formatTime12h(timeStr) {
+  if (!timeStr || typeof timeStr !== 'string') return '';
+  const [hStr, mStr] = timeStr.split(':');
+  let h = parseInt(hStr, 10);
+  const m = parseInt(mStr, 10);
+  if (isNaN(h)) return timeStr;
+  const period = h >= 12 ? 'PM' : 'AM';
+  h = h % 12;
+  if (h === 0) h = 12;
+  return `${h}:${String(m || 0).padStart(2, '0')} ${period}`;
+}
+
+/**
+ * Get detailed 1-hour pre-meal window details for a given meal:
+ * - Checks if current time is at or after 1 hour before eating time (stays active throughout the day till 11:59 PM)
+ * - At 11:59 PM / midnight, refreshes and resets back to showing the recommend message until the next day's 1-hour mark
+ */
+export function getMealWindowDetails(mealType = 'lunch', mealTimes = {}, customNow = new Date()) {
+  const defaults = {
+    breakfast: '08:00',
+    lunch: '13:00',
+    dinner: '20:00'
+  };
+  const mealTime = mealTimes?.[mealType] || defaults[mealType] || '13:00';
+  const [h, m] = mealTime.split(':').map(Number);
+  const eatingMinutes = (h || 0) * 60 + (m || 0);
+  const currentMinutes = customNow.getHours() * 60 + customNow.getMinutes();
+
+  // Recommendation is scheduled at 1 hour before eating time (e.g. 8:00 AM -> 7:00 AM):
+  const triggerMinutes = (eatingMinutes - 60 + 1440) % 1440;
+  const th = Math.floor(triggerMinutes / 60);
+  const tm = triggerMinutes % 60;
+  const recommendationTime = `${String(th).padStart(2, '0')}:${String(tm).padStart(2, '0')}`;
+
+  // Once 1 hour prior arrives, recommended food shows throughout the day till 11:59 PM (minute 1439).
+  // At 11:59 PM / midnight, it refreshes and resets back to the recommend message.
+  const isRecommendedToday = currentMinutes >= triggerMinutes;
+
+  const diffToMeal = eatingMinutes - currentMinutes;
+  const isImmediatePreMeal = diffToMeal <= 60 && diffToMeal >= 0;
+
+  let minutesUntilUnlock = 0;
+  let countdownFormatted = '';
+
+  if (isRecommendedToday) {
+    const minutesLeftToday = 1439 - currentMinutes;
+    const hLeft = Math.floor(minutesLeftToday / 60);
+    const mLeft = minutesLeftToday % 60;
+    countdownFormatted = `Active today till 11:59 PM (${hLeft}h ${mLeft}m remaining)`;
+  } else {
+    // Waiting for 1-hour-prior trigger today (e.g. between 00:00 and triggerMinutes)
+    minutesUntilUnlock = triggerMinutes - currentMinutes;
+    const hours = Math.floor(minutesUntilUnlock / 60);
+    const mins = minutesUntilUnlock % 60;
+    if (hours > 0 && mins > 0) {
+      countdownFormatted = `${hours}h ${mins}m`;
+    } else if (hours > 0) {
+      countdownFormatted = `${hours} hr${hours > 1 ? 's' : ''}`;
+    } else {
+      countdownFormatted = `${mins} min${mins !== 1 ? 's' : ''}`;
+    }
+  }
+
+  const mealLabels = {
+    breakfast: 'Breakfast',
+    lunch: 'Lunch',
+    dinner: 'Dinner'
+  };
+
+  return {
+    mealType,
+    mealLabel: mealLabels[mealType] || mealType,
+    eatingTime: mealTime,
+    eatingTime12h: formatTime12h(mealTime),
+    recommendationTime,
+    recommendationTime12h: formatTime12h(recommendationTime),
+    triggerMinutes,
+    isRecommendedToday,
+    isImmediatePreMeal,
+    diffToMeal,
+    minutesUntilUnlock,
+    countdownFormatted
+  };
+}
+
+/**
+ * Find the current or upcoming meal window:
+ * - Recommended food shows throughout the day once 1 hr prior arrives till 11:59 PM
+ * - Refreshes at 11:59 PM to show the recommend message
+ */
+export function getUpcomingMealWindow(mealTimes = {}, customNow = new Date()) {
   const defaults = {
     breakfast: '08:00',
     lunch: '13:00',
@@ -131,7 +221,7 @@ export function getUpcomingMealWindow(mealTimes = {}) {
     dinner: mealTimes?.dinner || defaults.dinner
   };
 
-  const now = new Date();
+  const now = customNow;
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
   const parseTimeMin = (timeStr) => {
@@ -152,68 +242,39 @@ export function getUpcomingMealWindow(mealTimes = {}) {
     const th = Math.floor(m.recTriggerMinutes / 60);
     const tm = m.recTriggerMinutes % 60;
     m.recommendationTime = `${String(th).padStart(2, '0')}:${String(tm).padStart(2, '0')}`;
+    m.eatingTime12h = formatTime12h(m.time);
+    m.recommendationTime12h = formatTime12h(m.recommendationTime);
+    m.isRecommendedToday = currentMinutes >= m.recTriggerMinutes;
   });
 
   // Sort by time of day
   mealList.sort((a, b) => a.minutes - b.minutes);
 
-  // Determine current or next meal:
-  // A meal is "active for recommendation" if current time is within [eatingTime - 75 mins, eatingTime + 30 mins]
-  let activeMeal = null;
-  let nextMeal = null;
-
-  for (let i = 0; i < mealList.length; i++) {
-    const m = mealList[i];
-    const diffToMeal = m.minutes - currentMinutes;
-
-    // Inside the 1-hour pre-meal window (between 75 mins before and 15 mins before)
-    if (diffToMeal >= -15 && diffToMeal <= 75) {
-      activeMeal = {
-        ...m,
-        diffMinutes: diffToMeal,
-        isOneHourWindow: diffToMeal >= 15 && diffToMeal <= 75,
-        status: diffToMeal > 0 ? `Eating in ${diffToMeal} mins` : 'Meal time now'
-      };
-      break;
-    }
+  // Determine current active selection based on time of day:
+  // - Dinner if past dinner trigger (e.g. 19:00 - 23:59)
+  // - Lunch if past lunch trigger (e.g. 12:00 - 18:59)
+  // - Breakfast if past breakfast trigger (e.g. 07:00 - 11:59)
+  // - Breakfast (locked, waiting for 7am) if early morning (00:00 - 06:59)
+  let currentSelection = mealList[0];
+  if (currentMinutes >= mealList[2].recTriggerMinutes) {
+    currentSelection = mealList[2];
+  } else if (currentMinutes >= mealList[1].recTriggerMinutes) {
+    currentSelection = mealList[1];
+  } else if (currentMinutes >= mealList[0].recTriggerMinutes) {
+    currentSelection = mealList[0];
+  } else {
+    currentSelection = mealList[0];
   }
 
-  // If no actively triggered window, find the next upcoming meal
-  if (!activeMeal) {
-    for (let i = 0; i < mealList.length; i++) {
-      const m = mealList[i];
-      if (m.minutes > currentMinutes) {
-        nextMeal = {
-          ...m,
-          diffMinutes: m.minutes - currentMinutes,
-          isOneHourWindow: false,
-          status: `Upcoming in ${Math.round((m.minutes - currentMinutes) / 60)}h ${ (m.minutes - currentMinutes) % 60 }m`
-        };
-        break;
-      }
-    }
-    // If past all meals today, next is tomorrow's breakfast
-    if (!nextMeal) {
-      const b = mealList[0];
-      const diff = (1440 - currentMinutes) + b.minutes;
-      nextMeal = {
-        ...b,
-        diffMinutes: diff,
-        isOneHourWindow: false,
-        status: `Tomorrow at ${b.time}`
-      };
-    }
-  }
-
-  const selected = activeMeal || nextMeal || mealList[0];
+  const activeMeal = currentSelection.isRecommendedToday ? currentSelection : null;
+  const isOneHourBefore = Boolean(activeMeal);
 
   return {
     currentMinutes,
     activeMeal,
-    nextMeal,
-    currentSelection: selected,
+    currentSelection,
     allMeals: mealList,
-    isOneHourBefore: Boolean(activeMeal && activeMeal.isOneHourWindow)
+    isOneHourBefore
   };
 }
 

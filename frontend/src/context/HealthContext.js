@@ -218,6 +218,25 @@ export const HealthProvider = ({ children }) => {
         ];
         setNotifications(welcomeNotification);
         localStorage.setItem('glucocare_notifications', JSON.stringify(welcomeNotification));
+
+        // Create fresh personalized chat for new user
+        const newChatKey = getUserChatKey(customProfile);
+        const starterChat = getInitialAiMessages(customProfile, starterGlucose[0]?.value || 100);
+        setAiChatMessages(starterChat);
+        localStorage.setItem(newChatKey, JSON.stringify(starterChat));
+      } else {
+        // Existing user: load their own chat history
+        const userChatKey = getUserChatKey(customProfile);
+        const savedChat = localStorage.getItem(userChatKey);
+        if (savedChat) {
+          try {
+            setAiChatMessages(JSON.parse(savedChat));
+          } catch {}
+        } else {
+          const starterChat = getInitialAiMessages(customProfile, 110);
+          setAiChatMessages(starterChat);
+          localStorage.setItem(userChatKey, JSON.stringify(starterChat));
+        }
       }
     }
     setIsAuthenticated(true);
@@ -329,21 +348,70 @@ export const HealthProvider = ({ children }) => {
     return saved ? JSON.parse(saved) : initialNotifications;
   });
 
-  // 10. AI Chat Messages
+  // Helper: get unique storage key for each user's AI chat
+  const getUserChatKey = (u) => {
+    const id = (u?.email || u?.id || 'default').toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+    return `glucocare_ai_chat_${id}`;
+  };
+
+  // Helper: create distinct, personalized initial message for each user
+  const getInitialAiMessages = (u, latestG = 114) => {
+    const name = u?.name?.split(' ')[0] || u?.name || 'there';
+    const type = u?.diabetesType || 'Type 2 Diabetes';
+    const targetMin = u?.targetGlucoseMin || 70;
+    const targetMax = u?.targetGlucoseMax || 140;
+
+    return [
+      {
+        id: 'm-init-' + Date.now(),
+        sender: 'ai',
+        text: `Hello ${name}! 👋 I am your dedicated AI Diabetes Care Coach, personalized for your **${type}** management.\n\n` +
+          `• **Target Range**: **${targetMin} – ${targetMax} mg/dL**\n` +
+          `• **Current Blood Sugar**: **${latestG} mg/dL**\n\n` +
+          `Ask me anything about your glucose trends, authentic low-GI Indian meals, post-meal workouts, or medication routines!`,
+        timestamp: new Date().toISOString()
+      }
+    ];
+  };
+
+  // 10. AI Chat Messages (Per-User Storage)
   const [aiChatMessages, setAiChatMessages] = useState(() => {
-    const saved = localStorage.getItem('glucocare_ai_chat');
-    return saved
-      ? JSON.parse(saved)
-      : [
-          {
-            id: 'm-init',
-            sender: 'ai',
-            text: `Hello ${user.name || 'there'}! 👋 I am your dedicated AI Diabetes Care Coach. How are you feeling today? You can ask me about your glucose levels, low-GI recipe recommendations, post-meal workouts, or medication routines!`,
-            timestamp: new Date().toISOString()
-          }
-        ];
+    const key = getUserChatKey(user);
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      try { return JSON.parse(saved); } catch {}
+    }
+    const legacy = localStorage.getItem('glucocare_ai_chat');
+    if (legacy && (!user?.email || user?.email === 'arjun.mehta@example.com')) {
+      try { return JSON.parse(legacy); } catch {}
+    }
+    return getInitialAiMessages(user, initialGlucoseReadings[0]?.readingMg || 114);
   });
   const [isAiTyping, setIsAiTyping] = useState(false);
+
+  // Synchronize AI chat when active user changes
+  useEffect(() => {
+    if (!user) return;
+    const key = getUserChatKey(user);
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      try {
+        setAiChatMessages(JSON.parse(saved));
+        return;
+      } catch {}
+    }
+    const fresh = getInitialAiMessages(user, glucoseReadings[0]?.readingMg || 114);
+    setAiChatMessages(fresh);
+    localStorage.setItem(key, JSON.stringify(fresh));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, user?.email]);
+
+  const clearAiChat = () => {
+    const key = getUserChatKey(user);
+    const fresh = getInitialAiMessages(user, glucoseReadings[0]?.readingMg || 114);
+    setAiChatMessages(fresh);
+    localStorage.setItem(key, JSON.stringify(fresh));
+  };
 
   // 11. Real-time Mobile Step Sensor & Background Keep-Alive State
   const [isPedometerActive, setPedometerActiveState] = useState(() => {
@@ -578,8 +646,11 @@ export const HealthProvider = ({ children }) => {
   }, [notifications]);
 
   useEffect(() => {
-    localStorage.setItem('glucocare_ai_chat', JSON.stringify(aiChatMessages));
-  }, [aiChatMessages]);
+    if (!user) return;
+    const key = getUserChatKey(user);
+    localStorage.setItem(key, JSON.stringify(aiChatMessages));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aiChatMessages, user?.id, user?.email]);
 
   // Unit conversion helpers
   // 1 mmol/L = 18.0182 mg/dL
@@ -737,7 +808,13 @@ export const HealthProvider = ({ children }) => {
           reply = await apiService.generateChat(userText, {
             user,
             latestGlucose,
-            readings: glucoseReadings.slice(0, 5)
+            glucoseReadings: glucoseReadings.slice(0, 5),
+            medications,
+            stepsData,
+            waterData,
+            avgGlucoseMg,
+            tirPercentage,
+            estimatedA1c
           });
         } catch (e) {
           // fallback
@@ -1348,6 +1425,7 @@ export const HealthProvider = ({ children }) => {
         markAllNotificationsRead,
         aiChatMessages,
         sendAiMessage,
+        clearAiChat,
         isAiTyping,
         isAuthenticated,
         login,

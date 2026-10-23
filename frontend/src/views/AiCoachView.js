@@ -2,12 +2,13 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   Bot,
   Send,
-  User
+  User,
+  RotateCcw
 } from 'lucide-react';
 import { useHealth } from '../context/HealthContext';
 
 export const AiCoachView = () => {
-  const { user, latestGlucose, formatGlucose, getGlucoseUnit, aiChatMessages, sendAiMessage, isAiTyping } = useHealth();
+  const { user, latestGlucose, formatGlucose, getGlucoseUnit, aiChatMessages, sendAiMessage, clearAiChat, isAiTyping } = useHealth();
   const [inputText, setInputText] = useState('');
   const messagesEndRef = useRef(null);
 
@@ -26,13 +27,45 @@ export const AiCoachView = () => {
     setInputText('');
   };
 
-  const promptChips = [
-    '📊 Analyze my sugar',
-    '🥗 Low-GI dinner',
-    '🚶 Post-meal workout',
-    '⚠️ Hypo Rule of 15',
-    '💧 Hydration benefits'
-  ];
+  const getPromptChips = () => {
+    const type = user?.diabetesType || 'Type 2';
+    if (type.includes('Type 1')) {
+      return [
+        '📊 Analyze my sugar',
+        '💉 Insulin-to-carb guide',
+        '🥗 Low-GI Indian dinner',
+        '⚠️ Hypo Rule of 15',
+        '🧪 Ketone precautions'
+      ];
+    }
+    if (type.includes('Gestational')) {
+      return [
+        '📊 Analyze my sugar',
+        '🤰 Pregnancy glucose targets',
+        '🥗 Safe Indian dinner plan',
+        '🚶 Gentle post-meal walk',
+        '💧 Hydration guidance'
+      ];
+    }
+    if (type.includes('Pre')) {
+      return [
+        '📊 Analyze my sugar',
+        '🌱 How to reverse pre-diabetes',
+        '🥗 Low-GI dinner swap',
+        '🚶 15-min post-meal walk',
+        '⚖️ Visceral fat reduction'
+      ];
+    }
+    return [
+      '📊 Analyze my sugar',
+      '🥗 Low-GI Indian dinner',
+      '🚶 Post-meal workout',
+      '⚠️ Hypo Rule of 15',
+      '💊 My Metformin & meds guide'
+    ];
+  };
+
+  const promptChips = getPromptChips();
 
   return (
     <div className="page-container" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - var(--header-height) - var(--bottom-nav-height) - 16px)', minHeight: 460, paddingBottom: 6 }}>
@@ -47,12 +80,12 @@ export const AiCoachView = () => {
           flexShrink: 0
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div
               style={{
-                width: 30,
-                height: 30,
+                width: 32,
+                height: 32,
                 borderRadius: 'var(--radius-xs)',
                 background: 'var(--primary-gradient)',
                 color: '#fff',
@@ -66,13 +99,36 @@ export const AiCoachView = () => {
             <div>
               <div style={{ fontWeight: 800, fontSize: '0.88rem' }}>AI Diabetes Coach</div>
               <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
-                {user.name} • {user.diabetesType}
+                Personalized for <strong>{user?.name || 'User'}</strong> • {user?.diabetesType || 'Type 2 Diabetes'}
               </div>
             </div>
           </div>
 
-          <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--primary)', background: 'var(--primary-light)', padding: '2px 7px', borderRadius: 'var(--radius-full)' }}>
-            {formatGlucose(latestGlucose.readingMg)} {getGlucoseUnit()}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--primary)', background: 'var(--primary-light)', padding: '2px 8px', borderRadius: 'var(--radius-full)' }}>
+              {formatGlucose(latestGlucose.readingMg)} {getGlucoseUnit()}
+            </div>
+            <button
+              type="button"
+              onClick={clearAiChat}
+              title="Start a new chat for this user"
+              style={{
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border-light)',
+                borderRadius: 'var(--radius-sm)',
+                padding: '4px 7px',
+                cursor: 'pointer',
+                color: 'var(--text-secondary)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                fontSize: '0.68rem',
+                fontWeight: 700
+              }}
+            >
+              <RotateCcw size={11} />
+              <span>New Chat</span>
+            </button>
           </div>
         </div>
       </div>

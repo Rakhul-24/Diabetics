@@ -10,22 +10,39 @@ export class DiabetesAiEngine {
     if (!apiKey || apiKey === 'your_gemini_api_key_here') return null;
 
     try {
-      const { user, latestGlucose, avgGlucoseMg, estimatedA1c, formatGlucose, getGlucoseUnit } = this.context;
+      const { user, latestGlucose, medications, waterData, stepsData, avgGlucoseMg, tirPercentage, estimatedA1c, formatGlucose, getGlucoseUnit } = this.context;
       const currentReading = `${formatGlucose(latestGlucose?.readingMg || 114)} ${getGlucoseUnit()}`;
+      const targetMin = user?.targetGlucoseMin || 70;
+      const targetMax = user?.targetGlucoseMax || 140;
+      const medsList = (medications || []).map(m => `${m.name} ${m.dosage || ''}`).filter(Boolean).join(', ') || 'Lifestyle management / None recorded';
 
-      const systemInstruction = `You are GlucoCare AI, an empathetic and highly knowledgeable Clinical Diabetes Lifestyle and Nutrition Expert.
-Patient Profile:
-- Name: ${user?.name || 'Arjun'}
-- Condition: ${user?.diabetesType || 'Type 2 Diabetes'}
-- Latest Blood Glucose: ${currentReading}
-- 7-Day Average Glucose: ${formatGlucose(avgGlucoseMg)} ${getGlucoseUnit()} (Estimated HbA1c: ${estimatedA1c}%)
-- Weight: ${user?.weight || 75}kg, Height: ${user?.height || 175}cm
+      const systemInstruction = `You are GlucoCare AI, an empathetic, highly specialized Clinical Diabetologist and Indian Lifestyle Nutritionist.
+You are giving a strictly personalized consultation to THIS specific patient. Every response must directly account for their unique clinical profile:
 
-Instructions:
-1. Answer the user's exact question with precision and medical rationale.
-2. For any food (e.g. chicken liver, fruits, grains), break down its Glycemic Index, carbs, protein, micronutrients, vitamin B12 / iron benefits, and portion recommendations.
-3. If they ask about symptoms, numbers, or medications, provide clear, safe action steps.
-4. Format with emojis, bold headers, and bullet points. Never diagnose disease or prescribe prescription medications.`;
+PATIENT UNIQUE PROFILE:
+- Name: ${user?.name || 'Patient'}
+- Diabetes Diagnosis: ${user?.diabetesType || 'Type 2 Diabetes'}
+- Age: ${user?.age || 40} years | Gender: ${user?.gender || 'Not specified'}
+- Height: ${user?.height || 170} cm | Weight: ${user?.weight || 70} kg | BMI: ${user?.bmi || (user?.weight && user?.height ? (user.weight / ((user.height / 100) ** 2)).toFixed(1) : 24.5)}
+- Target Blood Glucose Range: ${targetMin} – ${targetMax} ${getGlucoseUnit()}
+- Latest Blood Glucose Reading: ${currentReading}
+- 7-Day Average Glucose: ${formatGlucose(avgGlucoseMg)} ${getGlucoseUnit()} | Time in Range (TIR): ${tirPercentage}% | Est. HbA1c: ${estimatedA1c}%
+- Active Medications: ${medsList}
+- Today's Steps Walked: ${(stepsData?.current || 0).toLocaleString()} steps (Goal: ${(stepsData?.goal || 8000).toLocaleString()}) | Calories Burned: ${stepsData?.caloriesBurned || 0} kcal
+- Hydration Logged Today: ${waterData?.currentMl || 0} ml
+- Medical History: ${(user?.medicalHistory || []).join(', ') || 'None specified'}
+
+CRITICAL PERSONALIZATION RULES:
+1. Address the patient directly by their name (${user?.name || 'there'}).
+2. Adapt advice to their exact diabetes type (${user?.diabetesType || 'Type 2'}).
+   - For Type 1: Focus on insulin-to-carb ratios, basal/bolus timing, ketone vigilance, and hypo recovery.
+   - For Type 2: Focus on insulin resistance, metformin, post-meal walking to activate GLUT-4, fiber-first eating order.
+   - For Gestational Diabetes: Emphasize safe fetal development, strict postprandial control (<140 mg/dL), and safe nutrition without ketosis.
+   - For Pre-Diabetes: Emphasize diabetes reversal and preventing progression.
+3. Compare their glucose directly to THEIR target range (${targetMin} - ${targetMax} mg/dL).
+4. Reference their actual medications (${medsList}) and steps walked today (${(stepsData?.current || 0).toLocaleString()} steps).
+5. Recommend authentic, culturally appropriate Indian foods with GI scores, carbs, protein, and portion guidelines.
+6. Format with bold headers, bullet points, and emojis. Never prescribe prescription medications.`;
 
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
@@ -61,7 +78,9 @@ Instructions:
     const {
       user,
       latestGlucose,
+      medications,
       waterData,
+      stepsData,
       avgGlucoseMg,
       tirPercentage,
       estimatedA1c,
@@ -71,19 +90,61 @@ Instructions:
 
     const currentGlucoseMg = latestGlucose?.readingMg || 114;
     const currentGlucoseFmt = `${formatGlucose(currentGlucoseMg)} ${getGlucoseUnit()}`;
-    const patientName = user?.name || 'there';
+    const patientName = user?.name?.split(' ')[0] || user?.name || 'there';
     const diabetesType = user?.diabetesType || 'Type 2 Diabetes';
+    const targetMin = user?.targetGlucoseMin || 70;
+    const targetMax = user?.targetGlucoseMax || 140;
+    const stepsToday = stepsData?.current || 0;
+    const stepGoal = stepsData?.goal || 8000;
+    const medsList = (medications || []).map(m => `${m.name} (${m.dosage || ''})`).filter(Boolean);
 
     // ── GREETINGS & INTRO ──────────────────────────────────────────────────
     if (/^(hi|hello|hey|good morning|good afternoon|good evening|who are you|help|namaste)\b/.test(q)) {
-      return `👋 **Hello ${patientName}!** I am your dedicated AI Diabetes Care & Lifestyle Coach.\n\n` +
-        `I can help you with:\n` +
-        `• 🍗 **Foods & Diets**: Ask about ANY specific food, poultry, meat, fruit, or snack (e.g., *"Can I eat chicken liver?"*, *"Is jaggery safe?"*).\n` +
-        `• ⚡ **Sugar Levels & Triage**: Get immediate advice for high or low readings (e.g., *"My sugar is 210, what to do?"*).\n` +
-        `• 💊 **Medications**: Understand how Metformin, Glipizide, or Insulin work.\n` +
-        `• 🏃 **Workouts & Routines**: Post-meal walks, timing, and carb-lowering exercises.\n` +
-        `• 📊 **Your Vitals**: Your latest reading is **${currentGlucoseFmt}** (7-day Average: **${formatGlucose(avgGlucoseMg)} ${getGlucoseUnit()}** | TIR: **${tirPercentage}%**).\n\n` +
-        `What would you like to know today?`;
+      return `👋 **Hello ${patientName}!** I am your dedicated AI Diabetes Care Coach, personalized for your **${diabetesType}**.\n\n` +
+        `• **Your Glucose Target**: **${targetMin} – ${targetMax} ${getGlucoseUnit()}**\n` +
+        `• **Current Blood Sugar**: **${currentGlucoseFmt}** (7-day Average: **${formatGlucose(avgGlucoseMg)} ${getGlucoseUnit()}** | TIR: **${tirPercentage}%**)\n` +
+        `• **Active Routine**: ${medsList.length > 0 ? medsList.join(', ') : 'Lifestyle management'} • **${stepsToday.toLocaleString()}** steps walked today\n\n` +
+        `Ask me anything about analyzing your sugar, personalized Indian meal recipes, post-meal workouts, or medication timing!`;
+    }
+
+    // ── DEDICATED SUGAR ANALYSIS (e.g. "Analyze my sugar", "How is my sugar", "Report") ───
+    if (q.includes('analyze') || q.includes('my sugar') || q.includes('sugar report') || q.includes('how are my readings') || q.includes('how am i doing') || q.includes('my glucose')) {
+      const isLow = currentGlucoseMg < targetMin;
+      const isHigh = currentGlucoseMg > targetMax;
+      const isInRange = !isLow && !isHigh;
+
+      let statusMsg = '';
+      if (isInRange) {
+        statusMsg = `✅ **In Your Target Range**: Your reading of **${currentGlucoseFmt}** is nicely within your personalized goal (${targetMin}–${targetMax} mg/dL)! Keep up the steady routine.`;
+      } else if (isLow) {
+        statusMsg = `⚠️ **Below Your Target Minimum**: Your reading of **${currentGlucoseFmt}** is below your target minimum of ${targetMin} mg/dL. Ensure you have a small complex carb/protein snack or follow the Rule of 15 if <70 mg/dL.`;
+      } else {
+        statusMsg = `🟠 **Above Your Target Maximum**: Your reading of **${currentGlucoseFmt}** is above your target maximum of ${targetMax} mg/dL. A 15-minute post-meal walk and 300ml of water will help activate GLUT-4 receptors.`;
+      }
+
+      let typeGuidance = '';
+      if (diabetesType.includes('Type 1')) {
+        typeGuidance = `• **Type 1 Protocol**: Monitor your insulin-to-carbohydrate ratio (ICR) and check for ketones if glucose stays >250 mg/dL.`;
+      } else if (diabetesType.includes('Gestational')) {
+        typeGuidance = `• **Gestational Protocol**: Aim for fasting <95 mg/dL and 1-hour postprandial <140 mg/dL to support optimal fetal development.`;
+      } else if (diabetesType.includes('Pre')) {
+        typeGuidance = `• **Pre-Diabetes Protocol**: Reversal is highly attainable! Pairing ${stepsToday.toLocaleString()} steps with low-GI foods actively restores insulin sensitivity.`;
+      } else {
+        typeGuidance = `• **Type 2 Protocol**: Walking after meals and eating high-fiber vegetables before carbohydrates buffers insulin resistance effectively.`;
+      }
+
+      return `📊 **Clinical Sugar Analysis for ${patientName} (${diabetesType})**\n\n` +
+        `${statusMsg}\n\n` +
+        `**7-Day Performance Overview**:\n` +
+        `• **7-Day Average**: **${formatGlucose(avgGlucoseMg)} ${getGlucoseUnit()}**\n` +
+        `• **Time in Range (TIR)**: **${tirPercentage}%** ${tirPercentage >= 70 ? '🟢 (Meeting ADA Target >70%)' : '🟠 (Aiming to reach ADA Target >70%)'}\n` +
+        `• **Estimated HbA1c**: **~${estimatedA1c}%**\n\n` +
+        `**Lifestyle & Medication Factor**:\n` +
+        `• **Medications**: ${medsList.length > 0 ? medsList.join(', ') : 'Lifestyle & diet only'}\n` +
+        `• **Walking Activity**: **${stepsToday.toLocaleString()} / ${stepGoal.toLocaleString()} steps** (${stepsData?.caloriesBurned || 0} kcal burned)\n` +
+        `• **Hydration**: **${waterData?.currentMl || 0} ml** logged today\n\n` +
+        `${typeGuidance}\n\n` +
+        `Would you like a tailored low-GI Indian meal suggestion or a walking recommendation right now?`;
     }
 
     // ── MEATS, POULTRY, ORGAN MEATS & SEAFOOD ─────────────────────────────

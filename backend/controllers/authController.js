@@ -86,21 +86,48 @@ export async function login(req, res, next) {
 
 export async function googleLogin(req, res, next) {
   try {
-    const { idToken } = req.body;
-    let decoded;
+    const { idToken, profile } = req.body;
+    let decoded = null;
 
-    try {
-      decoded = idToken ? await auth.verifyIdToken(idToken) : req.user;
-    } catch {
-      decoded = req.user || { uid: 'google_user_123', email: 'arjun.sharma@example.com', name: 'Arjun Sharma' };
+    if (idToken) {
+      try {
+        decoded = await auth.verifyIdToken(idToken);
+      } catch (e) {
+        console.warn('Firebase verifyIdToken skipped/failed:', e.message);
+      }
     }
 
-    const uid = decoded.uid;
+    const email = decoded?.email || profile?.email || req.user?.email || 'user@gmail.com';
+    const name = decoded?.name || profile?.name || req.user?.name || email.split('@')[0];
+    const uid = decoded?.uid || profile?.id || 'google_' + email.toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+    const picture = decoded?.picture || profile?.profileImageUrl || profile?.picture || '';
+
+    // Check if user exists in Firestore
+    let existingData = {};
+    try {
+      const snap = await db.collection('users').doc(uid).get();
+      if (snap.exists) {
+        existingData = snap.data();
+      }
+    } catch {}
+
     const userDoc = {
+      ...existingData,
       uid,
-      name: decoded.name || 'Arjun Sharma',
-      email: decoded.email || 'arjun.sharma@example.com',
-      profileImageUrl: decoded.picture || '',
+      name: name || existingData.name || 'User',
+      email: email.toLowerCase(),
+      profileImageUrl: picture || existingData.profileImageUrl || '',
+      authProvider: 'google',
+      ...(profile?.diabetesType ? { diabetesType: profile.diabetesType } : {}),
+      ...(profile?.age ? { age: Number(profile.age) } : {}),
+      ...(profile?.gender ? { gender: profile.gender } : {}),
+      ...(profile?.height ? { height: Number(profile.height) } : {}),
+      ...(profile?.weight ? { weight: Number(profile.weight) } : {}),
+      ...(profile?.bmi ? { bmi: Number(profile.bmi) } : {}),
+      ...(profile?.activityLevel ? { activityLevel: profile.activityLevel } : {}),
+      ...(profile?.targetGlucoseMin ? { targetGlucoseMin: Number(profile.targetGlucoseMin) } : {}),
+      ...(profile?.targetGlucoseMax ? { targetGlucoseMax: Number(profile.targetGlucoseMax) } : {}),
+      ...(profile?.mealTimes ? { mealTimes: profile.mealTimes } : {}),
       updatedAt: new Date().toISOString()
     };
 

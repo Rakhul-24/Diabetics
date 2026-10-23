@@ -199,20 +199,59 @@ export const FoodView = () => {
   const [customKeyInput, setCustomKeyInput] = useState(user?.geminiApiKey || localStorage.getItem('gemini_api_key') || '');
   const [showAiInsightBanner, setShowAiInsightBanner] = useState(false);
 
-  // ── Ask with AI State ──────────────────────────────────────────────────
-  const [askAiQuery, setAskAiQuery] = useState('');
-  const [askAiLoading, setAskAiLoading] = useState(false);
-  const [askAiHistory, setAskAiHistory] = useState([
+  // ── Ask with AI State (Per-User Storage) ───────────────────────────────
+  const getFoodChatStorageKey = (u) => {
+    const id = (u?.email || u?.id || 'default').toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+    return `glucocare_food_chat_${id}`;
+  };
+
+  const getInitialFoodChat = (u) => [
     {
       id: 'welcome',
       question: 'How does food fit my sugar levels today?',
-      answer: `👋 **Hello ${user?.name || 'there'}!** I'm your dedicated AI Food & Clinical Nutritionist.\n\n` +
+      answer: `👋 **Hello ${u?.name || 'there'}!** I'm your dedicated AI Food & Clinical Nutritionist, customized for your **${u?.diabetesType || 'Type 2 Diabetes'}**.\n\n` +
         `• **Current Blood Sugar**: **${formatGlucose(latestGlucose?.readingMg || 114)} ${getGlucoseUnit()}** (Average: **${formatGlucose(avgGlucoseMg)} ${getGlucoseUnit()}**).\n` +
+        `• **Target Range**: **${u?.targetGlucoseMin || 70} – ${u?.targetGlucoseMax || 140} ${getGlucoseUnit()}**\n` +
         `• **Step Count**: **${(stepsData?.current || 0).toLocaleString()}** steps walked today.\n\n` +
         `Ask me anything! For example: *"Can I eat 2 dosas tonight?"*, *"Is Mango safe?"*, or *"Suggest a 250 kcal low-carb dinner"*.`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
-  ]);
+  ];
+
+  const [askAiQuery, setAskAiQuery] = useState('');
+  const [askAiLoading, setAskAiLoading] = useState(false);
+  const [askAiHistory, setAskAiHistory] = useState(() => {
+    const key = getFoodChatStorageKey(user);
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      try { return JSON.parse(saved); } catch {}
+    }
+    return getInitialFoodChat(user);
+  });
+
+  // Switch Food AI chat history when active user changes
+  React.useEffect(() => {
+    if (!user) return;
+    const key = getFoodChatStorageKey(user);
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      try {
+        setAskAiHistory(JSON.parse(saved));
+        return;
+      } catch {}
+    }
+    const fresh = getInitialFoodChat(user);
+    setAskAiHistory(fresh);
+    localStorage.setItem(key, JSON.stringify(fresh));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, user?.email]);
+
+  React.useEffect(() => {
+    if (!user) return;
+    const key = getFoodChatStorageKey(user);
+    localStorage.setItem(key, JSON.stringify(askAiHistory));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [askAiHistory, user?.id, user?.email]);
 
   const quickPrompts = [
     '🍛 Can I eat 2 dosas tonight?',
